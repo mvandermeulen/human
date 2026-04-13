@@ -317,7 +317,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.showSplash = false
 	case issueTickMsg:
 		return m.handleIssueTick()
-	case issuesResultMsg, dispatchResultMsg, openBrowserMsg, spawnAgentMsg, pendingConfirmsMsg, confirmDecisionMsg:
+	case spawnAgentMsg:
+		return m.handleSpawnAgentResult(msg)
+	case issuesResultMsg, dispatchResultMsg, openBrowserMsg, pendingConfirmsMsg, confirmDecisionMsg:
 		m.handleResultMsg(msg)
 	case createResultMsg:
 		return m.handleCreateResult(msg)
@@ -608,13 +610,18 @@ func (m model) activeProjectDir() string {
 	return ""
 }
 
-func (m *model) handleSpawnAgentResult(msg spawnAgentMsg) {
+func (m model) handleSpawnAgentResult(msg spawnAgentMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		m.dispatchStatus = fmt.Sprintf("Spawn failed: %s", msg.err)
-	} else {
-		m.dispatchStatus = fmt.Sprintf("Spawned %s", msg.name)
+		m.dispatchAt = time.Now()
+		return m, nil
 	}
+	m.dispatchStatus = fmt.Sprintf("Spawned %s", msg.name)
 	m.dispatchAt = time.Now()
+	// Force immediate full discovery so the new instance appears quickly.
+	m.fetching = true
+	m.fetchGen++
+	return m, fetchFull(m.mon, m.fetchGen)
 }
 
 func spawnAgentCmd(name, projectDir, tmuxTarget string) tea.Cmd {
@@ -740,8 +747,6 @@ func (m *model) handleResultMsg(msg tea.Msg) {
 		m.handleDispatchResult(msg)
 	case openBrowserMsg:
 		m.handleOpenBrowserResult(msg)
-	case spawnAgentMsg:
-		m.handleSpawnAgentResult(msg)
 	case pendingConfirmsMsg:
 		m.handlePendingConfirms(msg)
 	case confirmDecisionMsg:

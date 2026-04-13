@@ -167,9 +167,25 @@ func (p *FileParser) processLine(line []byte) {
 		p.state.LastActivity = ts
 	}
 
-	// Set session metadata from first entry that has it.
-	if p.state.SessionID == "" && entry.SessionID != "" {
-		p.state.SessionID = entry.SessionID
+	// Track session identity. When a new session starts in the same file
+	// (different sessionId), reset all accumulated state so stale tasks,
+	// subagents, and metadata from the previous session don't leak through.
+	if entry.SessionID != "" {
+		if p.state.SessionID == "" {
+			p.state.SessionID = entry.SessionID
+		} else if entry.SessionID != p.state.SessionID {
+			p.state = SessionState{
+				SessionID:    entry.SessionID,
+				Cwd:          entry.Cwd,
+				Slug:         entry.Slug,
+				StartedAt:    ts,
+				LastActivity: ts,
+			}
+			p.tasksByID = make(map[string]*Task)
+			p.tasksByToolUse = make(map[string]*Task)
+			p.activeSubagents = make(map[string]*Subagent)
+			return // metadata already set from this entry
+		}
 	}
 	if p.state.Cwd == "" && entry.Cwd != "" {
 		p.state.Cwd = entry.Cwd
