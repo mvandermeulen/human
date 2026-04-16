@@ -561,8 +561,17 @@ func spawnAgentInTmux(name, projectDir, tmuxTarget string, extraFlags ...string)
 	}
 	tmuxArgs = append(tmuxArgs, cmd)
 	runner := claude.OSCommandRunner{}
-	_, err = runner.Run(context.Background(), "tmux", tmuxArgs...)
-	return err
+	if _, err = runner.Run(context.Background(), "tmux", tmuxArgs...); err != nil {
+		return err
+	}
+	// Re-balance pane widths so repeated spawns don't drift the window
+	// into a lopsided layout (split-window only halves the active pane).
+	layoutTarget := tmuxTarget
+	if layoutTarget == "" {
+		layoutTarget = "."
+	}
+	_, _ = runner.Run(context.Background(), "tmux", "select-layout", "-t", layoutTarget, "even-horizontal")
+	return nil
 }
 
 // --- open in browser ---
