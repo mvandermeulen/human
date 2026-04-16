@@ -254,8 +254,8 @@ func toTrackerComment(gc ghComment) (*tracker.Comment, error) {
 // GitHub issues have fixed states: open and closed.
 func (c *Client) ListStatuses(_ context.Context, _ string) ([]tracker.Status, error) {
 	return []tracker.Status{
-		{Name: "open", Type: "started"},
-		{Name: "closed", Type: "closed"},
+		{Name: "open", Category: tracker.CategoryStarted},
+		{Name: "closed", Category: tracker.CategoryClosed},
 	}, nil
 }
 

@@ -65,7 +65,7 @@ func TestListIssues_happy(t *testing.T) {
 	assert.Equal(t, "1", issues[0].Key)
 	assert.Equal(t, "Bug report", issues[0].Title)
 	assert.Equal(t, "To Do", issues[0].Status)
-	assert.Equal(t, "unstarted", issues[0].StatusType)
+	assert.Equal(t, tracker.CategoryUnstarted, issues[0].StatusType)
 	assert.Equal(t, "bug", issues[0].Type)
 	assert.Equal(t, "Alice", issues[0].Assignee)
 	assert.Equal(t, "Bob", issues[0].Reporter)
@@ -73,7 +73,7 @@ func TestListIssues_happy(t *testing.T) {
 	assert.Equal(t, "2", issues[1].Key)
 	assert.Equal(t, "Feature request", issues[1].Title)
 	assert.Equal(t, "In Progress", issues[1].Status)
-	assert.Equal(t, "started", issues[1].StatusType)
+	assert.Equal(t, tracker.CategoryStarted, issues[1].StatusType)
 	assert.Equal(t, "", issues[1].Assignee)
 	assert.Equal(t, "", issues[1].Reporter)
 }
@@ -561,7 +561,7 @@ func TestDoRequest_authHeader(t *testing.T) {
 	client := New(srv.URL, "my-secret-token")
 	// Pre-populate state cache to avoid extra requests.
 	client.states = map[int64]string{500: "To Do"}
-	client.stateTypes = map[int64]string{500: "unstarted"}
+	client.stateTypes = map[int64]tracker.Category{500: tracker.CategoryUnstarted}
 	_, err := client.GetIssue(context.Background(), "1")
 
 	require.NoError(t, err)
@@ -887,16 +887,16 @@ func TestListStatuses_happy(t *testing.T) {
 
 	// Statuses are sorted alphabetically by name.
 	assert.Equal(t, "Blocked", statuses[0].Name)
-	assert.Equal(t, "unstarted", statuses[0].Type)
+	assert.Equal(t, tracker.CategoryUnstarted, statuses[0].Category)
 
 	assert.Equal(t, "Done", statuses[1].Name)
-	assert.Equal(t, "done", statuses[1].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[1].Category)
 
 	assert.Equal(t, "In Progress", statuses[2].Name)
-	assert.Equal(t, "started", statuses[2].Type)
+	assert.Equal(t, tracker.CategoryStarted, statuses[2].Category)
 
 	assert.Equal(t, "To Do", statuses[3].Name)
-	assert.Equal(t, "unstarted", statuses[3].Type)
+	assert.Equal(t, tracker.CategoryUnstarted, statuses[3].Category)
 }
 
 func TestListStatuses_emptyStates(t *testing.T) {

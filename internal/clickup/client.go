@@ -321,8 +321,8 @@ func (c *Client) ListStatuses(ctx context.Context, key string) ([]tracker.Status
 	result := make([]tracker.Status, 0, len(statuses))
 	for _, s := range statuses {
 		result = append(result, tracker.Status{
-			Name: s.Status,
-			Type: mapStatusType(s.Type),
+			Name:     s.Status,
+			Category: mapStatusType(s.Type),
 		})
 	}
 	return result, nil
@@ -503,23 +503,24 @@ func (c *Client) resolveMemberName(_ context.Context, user cuUser) string {
 	return name
 }
 
-// mapStatusType maps a ClickUp status type to a tracker status type.
-func mapStatusType(cuType string) string {
+// mapStatusType maps a ClickUp status type to a tracker.Category.
+func mapStatusType(cuType string) tracker.Category {
 	switch cuType {
 	case "open":
-		return "unstarted"
+		return tracker.CategoryUnstarted
 	case "custom":
-		return "started"
+		return tracker.CategoryStarted
 	case "done":
-		return "done"
+		return tracker.CategoryDone
 	case "closed":
-		return "done"
+		return tracker.CategoryDone
 	default:
-		return ""
+		return tracker.CategoryUnknown
 	}
 }
 
-// isTaskDone returns true if the task's status type is "done" or "closed".
+// isTaskDone returns true once a task sits in a terminal ClickUp category
+// (either "done" or "closed"), so scheduled/sync flows can skip it.
 func isTaskDone(task cuTask) bool {
 	return task.Status.Type == "done" || task.Status.Type == "closed"
 }

@@ -574,9 +574,9 @@ func TestRunListComments_Error(t *testing.T) {
 
 func TestRunListStatuses_JSON(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "Open", Type: "unstarted"},
-		{Name: "In Progress", Type: "started"},
-		{Name: "Done", Type: "done"},
+		{Name: "Open", Category: "unstarted"},
+		{Name: "In Progress", Category: "started"},
+		{Name: "Done", Category: "done"},
 	}
 	p := &mockProvider{
 		listStatusesFn: func(_ context.Context, key string) ([]tracker.Status, error) {
@@ -598,8 +598,8 @@ func TestRunListStatuses_JSON(t *testing.T) {
 
 func TestRunListStatuses_Table(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "Open", Type: "unstarted"},
-		{Name: "In Progress", Type: "started"},
+		{Name: "Open", Category: "unstarted"},
+		{Name: "In Progress", Category: "started"},
 	}
 	p := &mockProvider{
 		listStatusesFn: func(_ context.Context, _ string) ([]tracker.Status, error) {
@@ -666,8 +666,8 @@ func TestRunSetStatus_Error(t *testing.T) {
 
 func TestPrintStatusesTable_Success(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "Open", Type: "unstarted"},
-		{Name: "Closed", Type: ""},
+		{Name: "Open", Category: "unstarted"},
+		{Name: "Closed", Category: ""},
 	}
 
 	var buf bytes.Buffer
@@ -963,7 +963,7 @@ func TestCmd_IssueStart_Success(t *testing.T) {
 func TestCmd_IssueStatuses_Success(t *testing.T) {
 	mp := &mockProvider{
 		listStatusesFn: func(_ context.Context, key string) ([]tracker.Status, error) {
-			return []tracker.Status{{Name: "Open", Type: "unstarted"}}, nil
+			return []tracker.Status{{Name: "Open", Category: "unstarted"}}, nil
 		},
 	}
 	root, _ := newTestRoot(mp)

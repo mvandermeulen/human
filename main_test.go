@@ -964,9 +964,9 @@ func TestRunEditIssue_bothFields(t *testing.T) {
 
 func TestRunListStatuses_JSON(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "To Do", Type: "unstarted"},
-		{Name: "In Progress", Type: "started"},
-		{Name: "Done", Type: "done"},
+		{Name: "To Do", Category: "unstarted"},
+		{Name: "In Progress", Category: "started"},
+		{Name: "Done", Category: "done"},
 	}
 	p := &mockProvider{
 		listStatusesFn: func(_ context.Context, key string) ([]tracker.Status, error) {
@@ -985,8 +985,8 @@ func TestRunListStatuses_JSON(t *testing.T) {
 
 func TestRunListStatuses_Table(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "To Do", Type: "unstarted"},
-		{Name: "Done", Type: "done"},
+		{Name: "To Do", Category: "unstarted"},
+		{Name: "Done", Category: "done"},
 	}
 	p := &mockProvider{
 		listStatusesFn: func(_ context.Context, _ string) ([]tracker.Status, error) {
@@ -1046,8 +1046,8 @@ func TestRunSetStatus_error(t *testing.T) {
 
 func TestPrintStatusesTable(t *testing.T) {
 	statuses := []tracker.Status{
-		{Name: "Open", Type: "unstarted"},
-		{Name: "In Progress", Type: "started"},
+		{Name: "Open", Category: "unstarted"},
+		{Name: "In Progress", Category: "started"},
 		{Name: "Custom"},
 	}
 

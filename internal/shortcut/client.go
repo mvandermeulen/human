@@ -26,9 +26,9 @@ type Client struct {
 	api *apiclient.Client
 
 	statesMu       sync.Mutex
-	states         map[int64]string // workflow_state_id → state name
-	stateTypes     map[int64]string // workflow_state_id → type ("unstarted", "started", "done")
-	defaultStateID int64            // first "unstarted" state (for creating stories)
+	states         map[int64]string           // workflow_state_id → state name
+	stateTypes     map[int64]tracker.Category // workflow_state_id → normalised category
+	defaultStateID int64                      // first Unstarted state (for creating stories)
 
 	membersMu sync.Mutex
 	members   map[string]string // member UUID → display name
@@ -306,8 +306,8 @@ func (c *Client) ListStatuses(ctx context.Context, _ string) ([]tracker.Status, 
 	statuses := make([]tracker.Status, 0, len(c.states))
 	for id, name := range c.states {
 		statuses = append(statuses, tracker.Status{
-			Name: name,
-			Type: c.stateTypes[id],
+			Name:     name,
+			Category: c.stateTypes[id],
 		})
 	}
 	slices.SortFunc(statuses, func(a, b tracker.Status) int {
@@ -336,7 +336,7 @@ func (c *Client) resolveStateByName(ctx context.Context, targetStatus string) (i
 	}
 
 	// Fall back to type-based match for backward compat with "issue start".
-	targetLower := strings.ToLower(targetStatus)
+	targetLower := tracker.Category(strings.ToLower(targetStatus))
 	for id, typ := range c.stateTypes {
 		if typ == targetLower {
 			return id, nil
@@ -555,12 +555,13 @@ func (c *Client) fetchWorkflowsLocked(ctx context.Context) error {
 	}
 
 	c.states = make(map[int64]string)
-	c.stateTypes = make(map[int64]string)
+	c.stateTypes = make(map[int64]tracker.Category)
 	for _, wf := range workflows {
 		for _, st := range wf.States {
+			category := tracker.Category(st.Type)
 			c.states[st.ID] = st.Name
-			c.stateTypes[st.ID] = st.Type
-			if c.defaultStateID == 0 && st.Type == "unstarted" {
+			c.stateTypes[st.ID] = category
+			if c.defaultStateID == 0 && category == tracker.CategoryUnstarted {
 				c.defaultStateID = st.ID
 			}
 		}
@@ -681,7 +682,7 @@ func (c *Client) isDoneOrArchived(story scStory) bool {
 	c.statesMu.Lock()
 	stateType := c.stateTypes[story.WorkflowStateID]
 	c.statesMu.Unlock()
-	return stateType == "done"
+	return stateType == tracker.CategoryDone
 }
 
 // isValidStoryType returns true if t is a Shortcut-accepted story type.

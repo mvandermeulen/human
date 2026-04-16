@@ -85,14 +85,14 @@ func TestListIssues_happy(t *testing.T) {
 	assert.Equal(t, "abc1", issues[0].Key)
 	assert.Equal(t, "Bug report", issues[0].Title)
 	assert.Equal(t, "open", issues[0].Status)
-	assert.Equal(t, "unstarted", issues[0].StatusType)
+	assert.Equal(t, tracker.CategoryUnstarted, issues[0].StatusType)
 	assert.Equal(t, "alice", issues[0].Assignee)
 	assert.Equal(t, "bob", issues[0].Reporter)
 
 	assert.Equal(t, "abc2", issues[1].Key)
 	assert.Equal(t, "Feature request", issues[1].Title)
 	assert.Equal(t, "in progress", issues[1].Status)
-	assert.Equal(t, "started", issues[1].StatusType)
+	assert.Equal(t, tracker.CategoryStarted, issues[1].StatusType)
 	assert.Equal(t, "", issues[1].Assignee)
 	assert.Equal(t, "bob", issues[1].Reporter)
 }
@@ -249,7 +249,7 @@ func TestGetIssue_happy(t *testing.T) {
 	assert.Equal(t, "abc123", issue.Key)
 	assert.Equal(t, "The answer", issue.Title)
 	assert.Equal(t, "in progress", issue.Status)
-	assert.Equal(t, "started", issue.StatusType)
+	assert.Equal(t, tracker.CategoryStarted, issue.StatusType)
 	assert.Equal(t, "alice", issue.Assignee)
 	assert.Equal(t, "bob", issue.Reporter)
 	assert.Equal(t, "## Description\n\nThis is markdown.", issue.Description)
@@ -487,19 +487,19 @@ func TestListStatuses_happy(t *testing.T) {
 	require.Len(t, statuses, 5)
 
 	assert.Equal(t, "to do", statuses[0].Name)
-	assert.Equal(t, "unstarted", statuses[0].Type)
+	assert.Equal(t, tracker.CategoryUnstarted, statuses[0].Category)
 
 	assert.Equal(t, "in progress", statuses[1].Name)
-	assert.Equal(t, "started", statuses[1].Type)
+	assert.Equal(t, tracker.CategoryStarted, statuses[1].Category)
 
 	assert.Equal(t, "review", statuses[2].Name)
-	assert.Equal(t, "started", statuses[2].Type)
+	assert.Equal(t, tracker.CategoryStarted, statuses[2].Category)
 
 	assert.Equal(t, "done", statuses[3].Name)
-	assert.Equal(t, "done", statuses[3].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[3].Category)
 
 	assert.Equal(t, "closed", statuses[4].Name)
-	assert.Equal(t, "done", statuses[4].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[4].Category)
 }
 
 func TestAddComment_happy(t *testing.T) {
@@ -605,11 +605,11 @@ func TestLooksLikeCustomID(t *testing.T) {
 }
 
 func TestMapStatusType(t *testing.T) {
-	assert.Equal(t, "unstarted", mapStatusType("open"))
-	assert.Equal(t, "started", mapStatusType("custom"))
-	assert.Equal(t, "done", mapStatusType("done"))
-	assert.Equal(t, "done", mapStatusType("closed"))
-	assert.Equal(t, "", mapStatusType("unknown"))
+	assert.Equal(t, tracker.CategoryUnstarted, mapStatusType("open"))
+	assert.Equal(t, tracker.CategoryStarted, mapStatusType("custom"))
+	assert.Equal(t, tracker.CategoryDone, mapStatusType("done"))
+	assert.Equal(t, tracker.CategoryDone, mapStatusType("closed"))
+	assert.Equal(t, tracker.CategoryUnknown, mapStatusType("unknown"))
 }
 
 func TestParseUnixMs(t *testing.T) {

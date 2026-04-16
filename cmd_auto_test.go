@@ -49,7 +49,7 @@ func newMockInstances(kinds ...string) []tracker.Instance {
 					return &tracker.Comment{ID: "c1", Body: "ok"}, nil
 				},
 				listStatusesFn: func(_ context.Context, _ string) ([]tracker.Status, error) {
-					return []tracker.Status{{Name: "Open", Type: "started"}, {Name: "Closed", Type: "closed"}}, nil
+					return []tracker.Status{{Name: "Open", Category: "started"}, {Name: "Closed", Category: "closed"}}, nil
 				},
 				transitionIssueFn: func(_ context.Context, _ string, _ string) error { return nil },
 			},

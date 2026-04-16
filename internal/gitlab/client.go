@@ -249,8 +249,8 @@ func toTrackerComment(gn glNote) (*tracker.Comment, error) {
 // GitLab issues have fixed states: opened and closed.
 func (c *Client) ListStatuses(_ context.Context, _ string) ([]tracker.Status, error) {
 	return []tracker.Status{
-		{Name: "opened", Type: "started"},
-		{Name: "closed", Type: "closed"},
+		{Name: "opened", Category: tracker.CategoryStarted},
+		{Name: "closed", Category: tracker.CategoryClosed},
 	}, nil
 }
 

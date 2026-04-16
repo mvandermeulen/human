@@ -180,7 +180,7 @@ type Issue struct {
 	Type        string    `json:"type"`    // issue type, e.g. "Task", "Bug"
 	Title       string    `json:"title"`
 	Status      string    `json:"status"`
-	StatusType  string    `json:"status_type,omitempty"` // "unstarted", "started", "done", "closed", or ""
+	StatusType  Category  `json:"status_type,omitempty"` // semantic bucket, see Category
 	Priority    string    `json:"priority"`
 	Assignee    string    `json:"assignee"`
 	Reporter    string    `json:"reporter"`
@@ -307,10 +307,52 @@ type Editor interface {
 	EditIssue(ctx context.Context, key string, opts EditOptions) (*Issue, error)
 }
 
-// Status represents a workflow state that an issue can be in.
+// Category is the fixed, cross-tracker semantic bucket a Status belongs to.
+//
+// Every tracker exposes its own user-facing status names ("Ready for Review",
+// "In QA", "Needs Design", …) that vary per team and per workflow. Category
+// normalises those names into a small closed set the CLI can reason about
+// uniformly — e.g. "is this issue done?", "is work in progress?", "what colour
+// should this chip be in the TUI?".
+//
+// Two concepts, on purpose:
+//
+//   - Status.Name     = the label the user sees (tracker-specific, free-form).
+//   - Status.Category = the semantic bucket (fixed enum, defined here).
+//
+// Per-tracker mapping lives in each provider client:
+//
+//	Linear        linearStateType()    — internal/linear/client.go
+//	Azure DevOps  adoCategoryToType()  — internal/azuredevops/client.go
+//	ClickUp       mapStatusType()      — internal/clickup/client.go
+//	Shortcut      passthrough from API workflow state type
+//	GitHub        open→Started, closed→Closed (binary)
+//	GitLab        opened→Started, closed→Closed (binary)
+//	Jira          not populated (transitions are dynamic per issue)
+//
+// Upstream trackers distinguish more buckets than we do (Linear has 5:
+// Backlog, Unstarted, Started, Completed, Canceled; Azure DevOps has 5:
+// Proposed, InProgress, Resolved, Completed, Removed). We collapse them to 4
+// because that is the minimum the CLI needs to drive behaviour. To add a new
+// category, extend this enum first, then update each client's mapping —
+// do not sneak new values past the enum as bare strings.
+type Category string
+
+const (
+	CategoryUnknown   Category = ""          // not populated (e.g. Jira transitions)
+	CategoryUnstarted Category = "unstarted" // work not yet begun; Linear Backlog+Todo, ADO Proposed, ClickUp open
+	CategoryStarted   Category = "started"   // actively in progress; Linear Started, ADO InProgress, GitHub/GitLab open
+	CategoryDone      Category = "done"      // completed successfully; Linear Completed, ADO Resolved+Completed, ClickUp done+closed
+	CategoryClosed    Category = "closed"    // finished but not completed (cancelled/removed); Linear Canceled, ADO Removed, GitHub/GitLab closed
+)
+
+// Status represents a workflow state an issue can be in.
+//
+// Name is what the user sees — tracker-specific, potentially team-specific,
+// free-form. Category is the fixed semantic bucket (see Category doc).
 type Status struct {
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"` // "unstarted", "started", "done", "closed", or ""
+	Name     string   `json:"name"`
+	Category Category `json:"type,omitempty"` // JSON key stays "type" for wire compatibility
 }
 
 // StatusLister lists available statuses for an issue.

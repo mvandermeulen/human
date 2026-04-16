@@ -170,19 +170,19 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 	}, nil
 }
 
-// adoCategoryToType maps Azure DevOps state category to normalized status type.
-func adoCategoryToType(category string) string {
+// adoCategoryToType maps an Azure DevOps state category to a tracker.Category.
+func adoCategoryToType(category string) tracker.Category {
 	switch category {
 	case "Proposed":
-		return "unstarted"
+		return tracker.CategoryUnstarted
 	case "InProgress":
-		return "started"
+		return tracker.CategoryStarted
 	case "Resolved", "Completed":
-		return "done"
+		return tracker.CategoryDone
 	case "Removed":
-		return "closed"
+		return tracker.CategoryClosed
 	default:
-		return ""
+		return tracker.CategoryUnknown
 	}
 }
 
@@ -226,8 +226,8 @@ func (c *Client) ListStatuses(ctx context.Context, key string) ([]tracker.Status
 	statuses := make([]tracker.Status, len(statesResult.Value))
 	for i, s := range statesResult.Value {
 		statuses[i] = tracker.Status{
-			Name: s.Name,
-			Type: adoCategoryToType(s.Category),
+			Name:     s.Name,
+			Category: adoCategoryToType(s.Category),
 		}
 	}
 	return statuses, nil

@@ -378,8 +378,8 @@ func TestAuditProvider_ListStatuses(t *testing.T) {
 		listStatusesFn: func(_ context.Context, key string) ([]tracker.Status, error) {
 			assert.Equal(t, "KAN-1", key)
 			return []tracker.Status{
-				{Name: "To Do", Type: "unstarted"},
-				{Name: "Done", Type: "done"},
+				{Name: "To Do", Category: "unstarted"},
+				{Name: "Done", Category: "done"},
 			}, nil
 		},
 	}

@@ -346,19 +346,19 @@ func (c *Client) fetchTeamStates(ctx context.Context, key string) ([]linearState
 	return result.Teams.Nodes[0].States.Nodes, nil
 }
 
-// linearStateType maps Linear's internal state types to normalized status types.
-func linearStateType(t string) string {
+// linearStateType maps Linear's internal state types to a normalised tracker.Category.
+func linearStateType(t string) tracker.Category {
 	switch t {
 	case "unstarted", "backlog", "triage":
-		return "unstarted"
+		return tracker.CategoryUnstarted
 	case "started":
-		return "started"
+		return tracker.CategoryStarted
 	case "completed":
-		return "done"
+		return tracker.CategoryDone
 	case "canceled":
-		return "closed"
+		return tracker.CategoryClosed
 	default:
-		return ""
+		return tracker.CategoryUnknown
 	}
 }
 
@@ -371,7 +371,7 @@ func (c *Client) ListStatuses(ctx context.Context, key string) ([]tracker.Status
 
 	statuses := make([]tracker.Status, len(states))
 	for i, s := range states {
-		statuses[i] = tracker.Status{Name: s.Name, Type: linearStateType(s.Type)}
+		statuses[i] = tracker.Status{Name: s.Name, Category: linearStateType(s.Type)}
 	}
 	return statuses, nil
 }

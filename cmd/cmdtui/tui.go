@@ -1918,7 +1918,7 @@ func inferRole(trackerKind string) string {
 //
 //	PM:   Ready for Plan -> Planning -> Planned
 //	Eng:  Backlog -> In Dev -> Done -> Closed
-func pipelineStage(trackerKind, trackerRole, statusName, statusType string) string {
+func pipelineStage(trackerKind, trackerRole, statusName string, statusType tracker.Category) string {
 	role := trackerRole
 	if role == "" {
 		role = inferRole(trackerKind)
@@ -1926,24 +1926,24 @@ func pipelineStage(trackerKind, trackerRole, statusName, statusType string) stri
 	switch role {
 	case "pm":
 		switch statusType {
-		case "unstarted":
+		case tracker.CategoryUnstarted:
 			return "Ready for Plan"
-		case "started":
+		case tracker.CategoryStarted:
 			return "Planning"
-		case "done":
+		case tracker.CategoryDone:
 			return "Planned"
 		default:
 			return statusName
 		}
 	case "engineering":
 		switch statusType {
-		case "unstarted":
+		case tracker.CategoryUnstarted:
 			return "Backlog"
-		case "started":
+		case tracker.CategoryStarted:
 			return "In Dev"
-		case "done":
+		case tracker.CategoryDone:
 			return "Done"
-		case "closed":
+		case tracker.CategoryClosed:
 			return "Closed"
 		default:
 			return statusName
@@ -1953,15 +1953,15 @@ func pipelineStage(trackerKind, trackerRole, statusName, statusType string) stri
 	}
 }
 
-// pipelineStageStyle returns a lipgloss style for the given status type,
+// pipelineStageStyle returns a lipgloss style for the given category,
 // reflecting progress through the pipeline.
-func pipelineStageStyle(statusType string) lipgloss.Style {
+func pipelineStageStyle(statusType tracker.Category) lipgloss.Style {
 	switch statusType {
-	case "started":
+	case tracker.CategoryStarted:
 		return warningStyle // yellow -- in progress
-	case "done":
+	case tracker.CategoryDone:
 		return specialStyle // teal -- complete
-	case "unstarted", "closed":
+	case tracker.CategoryUnstarted, tracker.CategoryClosed:
 		return subtleStyle
 	default:
 		return subtleStyle

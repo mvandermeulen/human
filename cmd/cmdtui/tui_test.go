@@ -572,20 +572,22 @@ func TestModelView_WithIssues(t *testing.T) {
 
 func TestPipelineStage(t *testing.T) {
 	tests := []struct {
-		kind, status, statusType, want string
+		kind, status string
+		statusType   tracker.Category
+		want         string
 	}{
-		{"shortcut", "To Do", "unstarted", "Ready for Plan"},
-		{"shortcut", "In Progress", "started", "Planning"},
-		{"shortcut", "Done", "done", "Planned"},
-		{"shortcut", "Custom", "", "Custom"},
-		{"linear", "Backlog", "unstarted", "Backlog"},
-		{"linear", "In Progress", "started", "In Dev"},
-		{"linear", "Done", "done", "Done"},
-		{"linear", "Canceled", "closed", "Closed"},
-		{"jira", "Open", "", "Open"},
+		{"shortcut", "To Do", tracker.CategoryUnstarted, "Ready for Plan"},
+		{"shortcut", "In Progress", tracker.CategoryStarted, "Planning"},
+		{"shortcut", "Done", tracker.CategoryDone, "Planned"},
+		{"shortcut", "Custom", tracker.CategoryUnknown, "Custom"},
+		{"linear", "Backlog", tracker.CategoryUnstarted, "Backlog"},
+		{"linear", "In Progress", tracker.CategoryStarted, "In Dev"},
+		{"linear", "Done", tracker.CategoryDone, "Done"},
+		{"linear", "Canceled", tracker.CategoryClosed, "Closed"},
+		{"jira", "Open", tracker.CategoryUnknown, "Open"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.kind+"/"+tt.statusType, func(t *testing.T) {
+		t.Run(tt.kind+"/"+string(tt.statusType), func(t *testing.T) {
 			got := pipelineStage(tt.kind, "", tt.status, tt.statusType)
 			assert.Equal(t, tt.want, got)
 		})
@@ -594,9 +596,9 @@ func TestPipelineStage(t *testing.T) {
 
 func TestPipelineStageStyle(t *testing.T) {
 	// Verify the correct style is returned for each status type.
-	assert.Equal(t, subtleStyle, pipelineStageStyle("unstarted"))
-	assert.Equal(t, warningStyle, pipelineStageStyle("started"))
-	assert.Equal(t, specialStyle, pipelineStageStyle("done"))
+	assert.Equal(t, subtleStyle, pipelineStageStyle(tracker.CategoryUnstarted))
+	assert.Equal(t, warningStyle, pipelineStageStyle(tracker.CategoryStarted))
+	assert.Equal(t, specialStyle, pipelineStageStyle(tracker.CategoryDone))
 	assert.Equal(t, subtleStyle, pipelineStageStyle("closed"))
 	assert.Equal(t, subtleStyle, pipelineStageStyle(""))
 }

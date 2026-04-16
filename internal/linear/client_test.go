@@ -111,14 +111,14 @@ func TestListIssues_happy(t *testing.T) {
 	assert.Equal(t, "ENG", issues[0].Project)
 	assert.Equal(t, "First issue", issues[0].Title)
 	assert.Equal(t, "In Progress", issues[0].Status)
-	assert.Equal(t, "started", issues[0].StatusType)
+	assert.Equal(t, tracker.CategoryStarted, issues[0].StatusType)
 	assert.Equal(t, "High", issues[0].Priority)
 	assert.Equal(t, "Alice", issues[0].Assignee)
 	assert.Equal(t, "Bob", issues[0].Reporter)
 	assert.Equal(t, "bug", issues[0].Type)
 
 	assert.Equal(t, "ENG-2", issues[1].Key)
-	assert.Equal(t, "unstarted", issues[1].StatusType)
+	assert.Equal(t, tracker.CategoryUnstarted, issues[1].StatusType)
 	assert.Equal(t, "", issues[1].Assignee)
 	assert.Equal(t, "", issues[1].Type)
 }
@@ -234,7 +234,7 @@ func TestGetIssue_happy(t *testing.T) {
 	assert.Equal(t, "ENG", issue.Project)
 	assert.Equal(t, "The answer", issue.Title)
 	assert.Equal(t, "Done", issue.Status)
-	assert.Equal(t, "done", issue.StatusType)
+	assert.Equal(t, tracker.CategoryDone, issue.StatusType)
 	assert.Equal(t, "Urgent", issue.Priority)
 	assert.Equal(t, "Alice", issue.Assignee)
 	assert.Equal(t, "Bob", issue.Reporter)
@@ -901,16 +901,16 @@ func TestListStatuses_happy(t *testing.T) {
 	require.Len(t, statuses, 4)
 
 	assert.Equal(t, "Backlog", statuses[0].Name)
-	assert.Equal(t, "unstarted", statuses[0].Type)
+	assert.Equal(t, tracker.CategoryUnstarted, statuses[0].Category)
 
 	assert.Equal(t, "In Progress", statuses[1].Name)
-	assert.Equal(t, "started", statuses[1].Type)
+	assert.Equal(t, tracker.CategoryStarted, statuses[1].Category)
 
 	assert.Equal(t, "Done", statuses[2].Name)
-	assert.Equal(t, "done", statuses[2].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[2].Category)
 
 	assert.Equal(t, "Cancelled", statuses[3].Name)
-	assert.Equal(t, "closed", statuses[3].Type)
+	assert.Equal(t, tracker.CategoryClosed, statuses[3].Category)
 }
 
 func TestListStatuses_emptyStates(t *testing.T) {
@@ -1114,7 +1114,7 @@ func TestListIssues_updatedSinceIncludeAll(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, issues, 1)
 	assert.Equal(t, "ENG-10", issues[0].Key)
-	assert.Equal(t, "done", issues[0].StatusType)
+	assert.Equal(t, tracker.CategoryDone, issues[0].StatusType)
 }
 
 func TestListIssues_noProject(t *testing.T) {
@@ -1172,7 +1172,7 @@ func TestListIssues_noProjectIncludeAll(t *testing.T) {
 	require.Len(t, issues, 1)
 	assert.Equal(t, "ABC-3", issues[0].Key)
 	assert.Equal(t, "ABC", issues[0].Project)
-	assert.Equal(t, "closed", issues[0].StatusType)
+	assert.Equal(t, tracker.CategoryClosed, issues[0].StatusType)
 }
 
 func TestListIssues_noProjectUpdatedSince(t *testing.T) {
@@ -1557,7 +1557,7 @@ func TestToTrackerIssue_withUpdatedAt(t *testing.T) {
 	issue := toTrackerIssue(li, "ENG")
 
 	assert.Equal(t, "ENG-7", issue.Key)
-	assert.Equal(t, "unstarted", issue.StatusType)
+	assert.Equal(t, tracker.CategoryUnstarted, issue.StatusType)
 	assert.False(t, issue.UpdatedAt.IsZero())
 	assert.Equal(t, 2025, issue.UpdatedAt.Year())
 }

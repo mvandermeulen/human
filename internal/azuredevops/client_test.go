@@ -688,19 +688,19 @@ func TestListStatuses_happy(t *testing.T) {
 	assert.Equal(t, 2, callCount)
 
 	assert.Equal(t, "New", statuses[0].Name)
-	assert.Equal(t, "unstarted", statuses[0].Type)
+	assert.Equal(t, tracker.CategoryUnstarted, statuses[0].Category)
 
 	assert.Equal(t, "Active", statuses[1].Name)
-	assert.Equal(t, "started", statuses[1].Type)
+	assert.Equal(t, tracker.CategoryStarted, statuses[1].Category)
 
 	assert.Equal(t, "Resolved", statuses[2].Name)
-	assert.Equal(t, "done", statuses[2].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[2].Category)
 
 	assert.Equal(t, "Closed", statuses[3].Name)
-	assert.Equal(t, "done", statuses[3].Type)
+	assert.Equal(t, tracker.CategoryDone, statuses[3].Category)
 
 	assert.Equal(t, "Removed", statuses[4].Name)
-	assert.Equal(t, "closed", statuses[4].Type)
+	assert.Equal(t, tracker.CategoryClosed, statuses[4].Category)
 }
 
 func TestListStatuses_invalidKey(t *testing.T) {
@@ -781,14 +781,14 @@ func TestListStatuses_emptyStates(t *testing.T) {
 func TestAdoCategoryToType(t *testing.T) {
 	tests := []struct {
 		category string
-		want     string
+		want     tracker.Category
 	}{
-		{"Proposed", "unstarted"},
-		{"InProgress", "started"},
-		{"Resolved", "done"},
-		{"Completed", "done"},
-		{"Removed", "closed"},
-		{"Unknown", ""},
+		{"Proposed", tracker.CategoryUnstarted},
+		{"InProgress", tracker.CategoryStarted},
+		{"Resolved", tracker.CategoryDone},
+		{"Completed", tracker.CategoryDone},
+		{"Removed", tracker.CategoryClosed},
+		{"Unknown", tracker.CategoryUnknown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.category, func(t *testing.T) {

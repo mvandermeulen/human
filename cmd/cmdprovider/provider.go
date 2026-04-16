@@ -449,13 +449,15 @@ func printIssuesTable(out io.Writer, issues []tracker.Issue) error {
 // PrintStatusesTable prints statuses as a table.
 func PrintStatusesTable(out io.Writer, statuses []tracker.Status) error {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	// Header stays "TYPE" (not "CATEGORY") to keep the public CLI output
+	// stable for scripts; internally this column holds a tracker.Category.
 	_, _ = fmt.Fprintln(w, "NAME\tTYPE")
 	for _, s := range statuses {
-		typ := s.Type
-		if typ == "" {
-			typ = "-"
+		category := string(s.Category)
+		if category == "" {
+			category = "-"
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\n", s.Name, typ)
+		_, _ = fmt.Fprintf(w, "%s\t%s\n", s.Name, category)
 	}
 	return w.Flush()
 }
