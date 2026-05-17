@@ -893,13 +893,17 @@ func trackerDiagnoserFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolver)
 	}
 }
 
+// fetchJob pairs a configured tracker instance with a specific project to
+// fetch. Lifted out of the closure so helpers (scanReadyForReview) can
+// reference the same type.
+type fetchJob struct {
+	inst    tracker.Instance
+	project string
+}
+
 func fetchTrackerIssuesFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolver) func() ([]daemon.TrackerIssuesResult, error) {
 	return func() ([]daemon.TrackerIssuesResult, error) {
 		// Collect all (instance, project) pairs first.
-		type fetchJob struct {
-			inst    tracker.Instance
-			project string
-		}
 		var jobs []fetchJob
 		for _, entry := range reg.Entries() {
 			instances, err := cmdutil.LoadAllInstancesWithResolver(entry.Dir, entry.EnvLookup(), resolver)
@@ -948,8 +952,100 @@ func fetchTrackerIssuesFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolve
 			}(i, job)
 		}
 		wg.Wait()
+
+		// Scan PM-tracker comments for [human:ready-for-review] handoffs and
+		// propagate the flagged engineering keys to engineering-tracker
+		// results. See cli/CLAUDE.md "Review handoff".
+		readyKeys := scanReadyForReview(jobs, results)
+		for i := range results {
+			if results[i].TrackerRole != "engineering" {
+				continue
+			}
+			for _, iss := range results[i].Issues {
+				if readyKeys[iss.Key] {
+					results[i].ReadyForReview = append(results[i].ReadyForReview, iss.Key)
+				}
+			}
+		}
+
 		return results, nil
 	}
+}
+
+// scanReadyForReview walks PM-tracker results, fetches each issue's comments,
+// and returns the set of engineering ticket keys currently flagged ready for
+// review. A newer [human:review-complete] comment on the same issue clears
+// earlier handoffs for that issue.
+//
+// jobs and results are aligned 1:1 so we can recover the tracker.Provider for
+// a given result without re-loading instances from disk.
+func scanReadyForReview(jobs []fetchJob, results []daemon.TrackerIssuesResult) map[string]bool {
+	ready := make(map[string]bool)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for i := range results {
+		if results[i].TrackerRole != "pm" || results[i].Err != "" {
+			continue
+		}
+		commenter, ok := jobs[i].inst.Provider.(tracker.Commenter)
+		if !ok {
+			continue
+		}
+		for _, issue := range results[i].Issues {
+			wg.Add(1)
+			go func(c tracker.Commenter, key string) {
+				defer wg.Done()
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				comments, err := c.ListComments(ctx, key)
+				if err != nil {
+					return
+				}
+				keys := latestReadyKeys(comments)
+				if len(keys) == 0 {
+					return
+				}
+				mu.Lock()
+				for _, k := range keys {
+					ready[k] = true
+				}
+				mu.Unlock()
+			}(commenter, issue.Key)
+		}
+	}
+	wg.Wait()
+	return ready
+}
+
+// latestReadyKeys walks a comment thread and returns the engineering keys
+// from the most recent [human:ready-for-review] comment, unless a later
+// [human:review-complete] comment has already superseded it.
+func latestReadyKeys(comments []tracker.Comment) []string {
+	// Find the most recent handoff and the most recent review-complete.
+	var latestHandoff tracker.Comment
+	var latestComplete tracker.Comment
+	var haveHandoff, haveComplete bool
+	for _, c := range comments {
+		switch {
+		case daemon.IsReviewComplete(c.Body):
+			if !haveComplete || c.Created.After(latestComplete.Created) {
+				latestComplete = c
+				haveComplete = true
+			}
+		case len(daemon.ParseEngineeringKeysFromHandoff(c.Body)) > 0:
+			if !haveHandoff || c.Created.After(latestHandoff.Created) {
+				latestHandoff = c
+				haveHandoff = true
+			}
+		}
+	}
+	if !haveHandoff {
+		return nil
+	}
+	if haveComplete && latestComplete.Created.After(latestHandoff.Created) {
+		return nil
+	}
+	return daemon.ParseEngineeringKeysFromHandoff(latestHandoff.Body)
 }
 
 // dockerAgentCleaner implements daemon.AgentCleaner using a real Docker client.

@@ -35,12 +35,13 @@ const defaultWidth = 80
 
 // trackerIssues groups issues from one tracker instance and project.
 type trackerIssues struct {
-	TrackerName string
-	TrackerKind string
-	TrackerRole string // "pm", "engineering", or empty
-	Project     string
-	Issues      []tracker.Issue
-	Err         error
+	TrackerName    string
+	TrackerKind    string
+	TrackerRole    string // "pm", "engineering", or empty
+	Project        string
+	Issues         []tracker.Issue
+	ReadyForReview map[string]bool // issue keys currently flagged ready for review (see CLAUDE.md Review handoff)
+	Err            error
 }
 
 // flatIssue is a single issue with its tracker context, used for cursor indexing.
@@ -1901,6 +1902,13 @@ func fromDaemonResults(results []daemon.TrackerIssuesResult) []trackerIssues {
 			Project:     r.Project,
 			Issues:      r.Issues,
 		}
+		if len(r.ReadyForReview) > 0 {
+			set := make(map[string]bool, len(r.ReadyForReview))
+			for _, k := range r.ReadyForReview {
+				set[k] = true
+			}
+			out[i].ReadyForReview = set
+		}
 		if r.Err != "" {
 			out[i].Err = fmt.Errorf("%s", r.Err)
 		}
@@ -2037,7 +2045,7 @@ func renderIssuesPanel(groups []trackerIssues, fetchedAt time.Time, w, cursor in
 			subtleStyle.Render(g.Project))
 
 		for _, issue := range g.Issues {
-			title := truncate(issue.Title, w-30)
+			title := truncate(issue.Title, w-34)
 			stage := pipelineStage(g.TrackerKind, g.TrackerRole, issue.Status, issue.StatusType)
 			stageStyled := pipelineStageStyle(issue.StatusType).Render(truncate(stage, 14))
 			keyStyle := titleStyle
@@ -2046,9 +2054,16 @@ func renderIssuesPanel(groups []trackerIssues, fetchedAt time.Time, w, cursor in
 				keyStyle = selectedStyle
 				prefix = "    ▸ "
 			}
-			_, _ = fmt.Fprintf(&b, "%s%-12s %-14s %s\n",
+			// (R) marker when this engineering ticket is flagged ready for
+			// review on its PM ticket (see CLAUDE.md "Review handoff").
+			reviewMarker := "   "
+			if g.ReadyForReview[issue.Key] {
+				reviewMarker = specialStyle.Render("(R)")
+			}
+			_, _ = fmt.Fprintf(&b, "%s%-12s %s %-14s %s\n",
 				prefix,
 				keyStyle.Render(issue.Key),
+				reviewMarker,
 				stageStyled,
 				title)
 			flatIdx++

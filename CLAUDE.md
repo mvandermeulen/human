@@ -24,6 +24,29 @@ Use 'human' to read and write tickets on both trackers.
 
 Maintain traceability from PM ticket → engineering ticket → git commits. Reference the Shortcut ticket in the Linear ticket, and reference the PM ticket (Shortcut) in commit messages.
 
+# Review handoff
+
+When an engineer (human or AI agent) finishes coding an engineering ticket and `human-done` passes, the handoff to a reviewer goes via a structured comment on the **PM ticket**. This is tracker-agnostic (works on every backend `human` supports) and requires no custom tracker status.
+
+Handoff comment body, posted on the PM ticket:
+
+```
+[human:ready-for-review]
+engineering: HUM-89, HUM-90
+branch: main
+commits: 2037e40, 64bb370
+```
+
+- `engineering:` is comma-separated — one PM ticket can spawn multiple engineering tickets.
+- `branch:` is the branch the commits live on.
+- `commits:` is the short SHAs attributed to those engineering keys via `git log --grep=<ENG_KEY>`.
+
+The `human-executor` agent posts this comment automatically as its final step. A reviewer (today: another user runs `/human-pickup-review <PM_KEY>`; future: daemon polling) parses the block, runs `human-reviewer` against each engineering key, and posts a `[human:review-complete]` follow-up comment on the same PM ticket with the verdict.
+
+The TUI marks engineering tickets whose PM ticket carries an unresolved `[human:ready-for-review]` comment with an `(R)` annotation in the tracker view.
+
+Do NOT use a custom tracker status for review signalling — that would require every team to reconfigure their tracker. Comments are the universal primitive.
+
 # Daemon
 
 When the human daemon is running, all CLI commands (except `daemon`, `install`, `init`, `tui`) are automatically forwarded to it. The daemon holds all tracker credentials on the host — **do NOT set tokens manually when the daemon is running**. Just run `human` commands directly.

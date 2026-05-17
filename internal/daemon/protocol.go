@@ -3,13 +3,20 @@ package daemon
 import "github.com/StephanSchmidt/human/internal/tracker"
 
 // TrackerIssuesResult is the wire type for a single tracker/project's issues.
+//
+// ReadyForReview carries the engineering ticket keys that a PM tracker has
+// currently flagged for review via a [human:ready-for-review] comment. It is
+// populated on engineering-tracker results (where the keys actually live) so
+// the TUI can join it against Issues without a separate lookup. See
+// cli/CLAUDE.md "Review handoff" for the comment convention.
 type TrackerIssuesResult struct {
-	TrackerName string          `json:"tracker_name"`
-	TrackerKind string          `json:"tracker_kind"`
-	TrackerRole string          `json:"tracker_role,omitempty"`
-	Project     string          `json:"project"`
-	Issues      []tracker.Issue `json:"issues"`
-	Err         string          `json:"error,omitempty"`
+	TrackerName    string          `json:"tracker_name"`
+	TrackerKind    string          `json:"tracker_kind"`
+	TrackerRole    string          `json:"tracker_role,omitempty"`
+	Project        string          `json:"project"`
+	Issues         []tracker.Issue `json:"issues"`
+	ReadyForReview []string        `json:"ready_for_review,omitempty"`
+	Err            string          `json:"error,omitempty"`
 }
 
 // Request is sent from the client to the daemon (one JSON line per connection).

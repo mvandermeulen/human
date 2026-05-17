@@ -42,15 +42,23 @@ human <TRACKER> issue comment list <TICKET_KEY>
    - Read the target file before modifying it
    - Make the change described in the plan
    - Verify the change compiles/parses correctly where applicable
-5. **Review checkpoint** — after all tasks, invoke the **human-reviewer** agent via the Task tool to verify the implementation against the ticket:
-   ```
-   Task(subagent_type="human-reviewer", prompt="Review changes for ticket <ENG_KEY>")
-   ```
-6. **Done checkpoint** — invoke the **human-done** agent via the Task tool to produce a Definition of Done report:
+5. **Done checkpoint** — invoke the **human-done** agent via the Task tool to produce a Definition of Done report. This is a self-check (tests pass, acceptance criteria met). Peer review happens later via the pickup-review skill — do not invoke human-reviewer inline:
    ```
    Task(subagent_type="human-done", prompt="Evaluate whether ticket <ENG_KEY> is done")
    ```
-7. **Summarize** what was done: files created, files modified, review outcome, done verdict
+6. **Hand off for review.** If the human-done verdict is pass, post a structured handoff comment on the **PM ticket** so a separate reviewer (today: another `human` user runs `/human-pickup-review`; later: the daemon polls for it) can pick the work up. The format is fixed so it can be parsed unambiguously across trackers:
+   ```
+   [human:ready-for-review]
+   engineering: <ENG_KEY>
+   branch: <current-branch>
+   commits: <short-shas>
+   ```
+   Build the values:
+   - `<current-branch>` from `git rev-parse --abbrev-ref HEAD`.
+   - `<short-shas>` from `git log --grep=<ENG_KEY> --format='%h' HEAD` (comma-separated).
+   - If multiple engineering tickets were executed in this run, list them all comma-separated under `engineering:` and union their commit SHAs.
+   Post it with `human <pm-tracker> issue comment add <PM_KEY> "<comment-body>"`. If `human-done` failed, do NOT post the handoff — leave the work in progress and report the failures so the user can fix them and re-run.
+7. **Summarize** what was done: files created, files modified, done verdict, link/key of the PM comment that was posted (or note that it was skipped because done failed).
 
 ## Principles
 
