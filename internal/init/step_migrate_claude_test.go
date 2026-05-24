@@ -236,6 +236,10 @@ func TestClaudeMigrateStep_FullMigration(t *testing.T) {
 	// Set up host project.
 	projDir := filepath.Join(tmp, "myproject")
 	require.NoError(t, os.MkdirAll(projDir, 0o755))
+	// Resolve symlinks so EncodePath matches os.Getwd() on macOS (/var → /private/var).
+	if real, err := filepath.EvalSymlinks(projDir); err == nil {
+		projDir = real
+	}
 	require.NoError(t, os.Chdir(projDir))
 
 	claudeDir := filepath.Join(tmp, ".claude")

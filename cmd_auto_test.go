@@ -181,7 +181,9 @@ func TestAutoList_withTrackerFlag(t *testing.T) {
 	assert.Contains(t, stderr.String(), "Detected tracker: linear")
 }
 
-func TestAutoList_requiresProjectFlag(t *testing.T) {
+func TestAutoList_projectFlagOptional(t *testing.T) {
+	setAutoLoader(t, newMockInstances("jira"))
+
 	cmd := newRootCmd()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -189,7 +191,7 @@ func TestAutoList_requiresProjectFlag(t *testing.T) {
 	cmd.SetArgs([]string{"list"})
 
 	err := cmd.Execute()
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestAutoList_allFlag(t *testing.T) {
