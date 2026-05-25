@@ -1,6 +1,6 @@
 module github.com/StephanSchmidt/human
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/1password/onepassword-sdk-go v0.4.0
@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/yuin/goldmark v1.8.2
 	gitlab.com/tozd/go/errors v0.11.1
-	golang.org/x/sys v0.43.0
+	golang.org/x/sys v0.44.0
 	golang.org/x/term v0.40.0
 	modernc.org/sqlite v1.48.1
 )
