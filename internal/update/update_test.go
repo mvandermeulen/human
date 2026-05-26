@@ -2,6 +2,7 @@ package update
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -176,6 +177,63 @@ func TestCheckAndRefresh_RefreshesWhenStale(t *testing.T) {
 	got := CachedLatestVersion(path)
 	if got != "v0.18.0" {
 		t.Errorf("after refresh, got %q, want %q", got, "v0.18.0")
+	}
+}
+
+// TestCachePath verifies the returned path ends with the expected suffix so
+// the cache lands in ~/.human/update-check.json under normal conditions.
+func TestCachePath(t *testing.T) {
+	got := CachePath()
+	if !strings.HasSuffix(got, filepath.Join(".human", "update-check.json")) {
+		t.Errorf("CachePath() = %q, want suffix %q", got, filepath.Join(".human", "update-check.json"))
+	}
+}
+
+// TestCachePath_HomeDirError verifies the fallback path when the home directory
+// cannot be resolved (e.g. misconfigured HOME env var).
+func TestCachePath_HomeDirError(t *testing.T) {
+	orig := userHomeDir
+	userHomeDir = func() (string, error) { return "", errors.New("no home") }
+	t.Cleanup(func() { userHomeDir = orig })
+
+	got := CachePath()
+	if !strings.HasSuffix(got, filepath.Join(".human", "update-check.json")) {
+		t.Errorf("CachePath() fallback = %q, want suffix %q", got, filepath.Join(".human", "update-check.json"))
+	}
+	if strings.HasPrefix(got, "/") {
+		t.Errorf("expected relative fallback path, got %q", got)
+	}
+}
+
+// TestCheckAndRefresh_NonOKStatus verifies that a non-200 HTTP response is
+// silently discarded and the cache is not updated.
+func TestCheckAndRefresh_NonOKStatus(t *testing.T) {
+	mem := useMemFs(t)
+	path := "/tmp/.human/update-check.json"
+	_ = mem.MkdirAll(filepath.Dir(path), 0o700)
+
+	origGet := httpGet
+	httpGet = func(_ string) (*http.Response, error) {
+		rec := httptest.NewRecorder()
+		rec.WriteHeader(http.StatusForbidden)
+		return rec.Result(), nil
+	}
+	t.Cleanup(func() { httpGet = origGet })
+
+	CheckAndRefresh(path)
+
+	got := CachedLatestVersion(path)
+	if got != "" {
+		t.Errorf("expected empty cache after non-200 response, got %q", got)
+	}
+}
+
+// TestIsCacheFresh_MissingFile confirms isCacheFresh returns false when the
+// cache file does not exist.
+func TestIsCacheFresh_MissingFile(t *testing.T) {
+	useMemFs(t)
+	if isCacheFresh("/nonexistent/path.json", 24*time.Hour) {
+		t.Fatal("isCacheFresh should return false for missing file")
 	}
 }
 

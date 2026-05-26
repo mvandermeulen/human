@@ -25,6 +25,9 @@ const (
 // fs is the filesystem abstraction — replaced with MemMapFs in tests.
 var fs afero.Fs = afero.NewOsFs()
 
+// userHomeDir resolves the user's home directory — replaced with a stub in tests.
+var userHomeDir = os.UserHomeDir
+
 // httpGet is the HTTP client — replaced with a mock in tests.
 var httpGet = func(url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -45,7 +48,7 @@ type updateCache struct {
 // CachePath returns the path to the update-check cache file.
 // Falls back to a relative path when the home directory cannot be resolved.
 func CachePath() string {
-	home, err := os.UserHomeDir()
+	home, err := userHomeDir()
 	if err != nil {
 		return filepath.Join(".", ".human", cacheFileName)
 	}
