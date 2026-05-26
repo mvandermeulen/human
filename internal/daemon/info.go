@@ -34,9 +34,14 @@ type DaemonInfo struct {
 	Addr       string        `json:"addr"`
 	ChromeAddr string        `json:"chrome_addr,omitempty"`
 	ProxyAddr  string        `json:"proxy_addr,omitempty"`
-	Token      string        `json:"token"`
-	PID        int           `json:"pid"`
-	Projects   []ProjectInfo `json:"projects,omitempty"`
+	Token    string `json:"token"`
+	PID      int    `json:"pid"`
+	// Version carries the daemon binary's build version so clients can warn
+	// about skew between the running daemon and the CLI binary.
+	// omitempty preserves backward-compatibility with daemon.json files
+	// written by older builds that do not emit this field.
+	Version  string        `json:"version,omitempty"`
+	Projects []ProjectInfo `json:"projects,omitempty"`
 }
 
 // InfoPath returns the default path for the daemon info file (~/.human/daemon.json).
