@@ -1471,3 +1471,18 @@ func TestRenderToolStatsPanel_singleTool(t *testing.T) {
 	assert.Contains(t, out, "(100%)")
 	assert.Contains(t, out, "0.0% error rate")
 }
+
+func TestReviewMarker(t *testing.T) {
+	// Not flagged: blank spacing, no (R).
+	assert.NotContains(t, reviewMarker(false, ""), "(R)")
+
+	// Ready, no PR: shows (R), no hyperlink escape.
+	plain := reviewMarker(true, "")
+	assert.Contains(t, plain, "(R)")
+	assert.NotContains(t, plain, "\x1b]8;;")
+
+	// Ready with PR: (R) wrapped in an OSC 8 hyperlink to the PR.
+	linked := reviewMarker(true, "https://github.com/o/r/pull/7")
+	assert.Contains(t, linked, "(R)")
+	assert.Contains(t, linked, "\x1b]8;;https://github.com/o/r/pull/7\x1b\\")
+}

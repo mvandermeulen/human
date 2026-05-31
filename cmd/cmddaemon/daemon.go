@@ -965,7 +965,7 @@ func fetchTrackerIssuesFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolve
 		// Scan PM-tracker comments for [human:ready-for-review] handoffs and
 		// propagate the flagged engineering keys to engineering-tracker
 		// results. See cli/CLAUDE.md "Review handoff".
-		readyKeys := scanReadyForReview(jobs, results)
+		readyKeys, readyPRs := scanReadyForReview(jobs, results)
 		for i := range results {
 			if results[i].TrackerRole != "engineering" {
 				continue
@@ -973,6 +973,12 @@ func fetchTrackerIssuesFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolve
 			for _, iss := range results[i].Issues {
 				if readyKeys[iss.Key] {
 					results[i].ReadyForReview = append(results[i].ReadyForReview, iss.Key)
+					if pr := readyPRs[iss.Key]; pr != "" {
+						if results[i].ReadyForReviewPRs == nil {
+							results[i].ReadyForReviewPRs = make(map[string]string)
+						}
+						results[i].ReadyForReviewPRs[iss.Key] = pr
+					}
 				}
 			}
 		}
@@ -988,8 +994,9 @@ func fetchTrackerIssuesFunc(reg *daemon.ProjectRegistry, resolver *vault.Resolve
 //
 // jobs and results are aligned 1:1 so we can recover the tracker.Provider for
 // a given result without re-loading instances from disk.
-func scanReadyForReview(jobs []fetchJob, results []daemon.TrackerIssuesResult) map[string]bool {
+func scanReadyForReview(jobs []fetchJob, results []daemon.TrackerIssuesResult) (map[string]bool, map[string]string) {
 	ready := make(map[string]bool)
+	prs := make(map[string]string)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i := range results {
@@ -1010,26 +1017,30 @@ func scanReadyForReview(jobs []fetchJob, results []daemon.TrackerIssuesResult) m
 				if err != nil {
 					return
 				}
-				keys := latestReadyKeys(comments)
+				keys, pr := latestReadyKeys(comments)
 				if len(keys) == 0 {
 					return
 				}
 				mu.Lock()
 				for _, k := range keys {
 					ready[k] = true
+					if pr != "" {
+						prs[k] = pr
+					}
 				}
 				mu.Unlock()
 			}(commenter, issue.Key)
 		}
 	}
 	wg.Wait()
-	return ready
+	return ready, prs
 }
 
 // latestReadyKeys walks a comment thread and returns the engineering keys
-// from the most recent [human:ready-for-review] comment, unless a later
+// from the most recent [human:ready-for-review] comment (and the pull-request
+// URL on its optional pr: line, if any), unless a later
 // [human:review-complete] comment has already superseded it.
-func latestReadyKeys(comments []tracker.Comment) []string {
+func latestReadyKeys(comments []tracker.Comment) ([]string, string) {
 	// Find the most recent handoff and the most recent review-complete.
 	var latestHandoff tracker.Comment
 	var latestComplete tracker.Comment
@@ -1049,15 +1060,15 @@ func latestReadyKeys(comments []tracker.Comment) []string {
 		}
 	}
 	if !haveHandoff {
-		return nil
+		return nil, ""
 	}
 	// Inclusive boundary: tracker timestamps are second-granular, so a
 	// review-complete posted in the same second as the handoff must still
 	// clear it (otherwise the (R) annotation lingers after review is done).
 	if haveComplete && !latestComplete.Created.Before(latestHandoff.Created) {
-		return nil
+		return nil, ""
 	}
-	return daemon.ParseEngineeringKeysFromHandoff(latestHandoff.Body)
+	return daemon.ParseEngineeringKeysFromHandoff(latestHandoff.Body), daemon.ParsePRFromHandoff(latestHandoff.Body)
 }
 
 // dockerAgentCleaner implements daemon.AgentCleaner using a real Docker client.

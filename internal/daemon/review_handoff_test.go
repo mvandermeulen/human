@@ -47,6 +47,40 @@ func TestParseEngineeringKeysFromHandoff(t *testing.T) {
 	}
 }
 
+func TestParsePRFromHandoff(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "handoff with pr line",
+			body: "[human:ready-for-review]\nengineering: HUM-89\nbranch: autofix/hum-89\ncommits: 2037e40\npr: https://github.com/o/r/pull/7",
+			want: "https://github.com/o/r/pull/7",
+		},
+		{
+			name: "handoff without pr line",
+			body: "[human:ready-for-review]\nengineering: HUM-89\nbranch: main",
+			want: "",
+		},
+		{
+			name: "not a handoff",
+			body: "pr: https://example.com/pull/1",
+			want: "",
+		},
+		{
+			name: "quoted header does not trigger",
+			body: "> [human:ready-for-review]\n> pr: https://github.com/o/r/pull/7",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ParsePRFromHandoff(tt.body))
+		})
+	}
+}
+
 func TestIsReviewComplete(t *testing.T) {
 	assert.True(t, IsReviewComplete("[human:review-complete]\nverdict: pass"))
 	assert.True(t, IsReviewComplete("  [human:review-complete]\nverdict: pass"))
