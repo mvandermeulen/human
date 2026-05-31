@@ -2,10 +2,17 @@ package azuredevops
 
 // adoWorkItem is the Azure DevOps API representation of a work item.
 type adoWorkItem struct {
-	ID     int       `json:"id"`
-	Rev    int       `json:"rev"`
-	Fields adoFields `json:"fields"`
-	URL    string    `json:"url"`
+	ID        int           `json:"id"`
+	Rev       int           `json:"rev"`
+	Fields    adoFields     `json:"fields"`
+	URL       string        `json:"url"`
+	Relations []adoRelation `json:"relations"` // present only with $expand=relations
+}
+
+// adoRelation is a link between work items (e.g. parent/child hierarchy).
+type adoRelation struct {
+	Rel string `json:"rel"`
+	URL string `json:"url"`
 }
 
 // adoFields contains the System.* and Microsoft.* fields of a work item.

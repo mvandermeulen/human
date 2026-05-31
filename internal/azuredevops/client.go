@@ -21,8 +21,9 @@ var _ tracker.Provider = (*Client)(nil)
 
 // Client is an Azure DevOps REST API client that implements tracker.Provider.
 type Client struct {
-	api *apiclient.Client
-	org string
+	api     *apiclient.Client
+	org     string
+	baseURL string
 }
 
 // New creates an Azure DevOps client with the given base URL, organization, and PAT.
@@ -33,7 +34,8 @@ func New(baseURL, org, token string) *Client {
 			apiclient.WithHeader("Accept", "application/json"),
 			apiclient.WithProviderName("azuredevops"),
 		),
-		org: org,
+		org:     org,
+		baseURL: baseURL,
 	}
 }
 
@@ -119,7 +121,10 @@ func (c *Client) GetIssue(ctx context.Context, key string) (*tracker.Issue, erro
 	}
 
 	path := fmt.Sprintf("/%s/%s/_apis/wit/workitems/%d", url.PathEscape(c.org), url.PathEscape(project), id)
-	resp, err := c.doRequest(ctx, http.MethodGet, path, "api-version=7.1", nil, "")
+	// $expand=relations surfaces the parent hierarchy link so subtasks can
+	// report their parent. The batch list endpoint omits relations, so this
+	// only applies to single-issue reads.
+	resp, err := c.doRequest(ctx, http.MethodGet, path, "$expand=relations&api-version=7.1", nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +150,22 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 	if issue.Description != "" {
 		ops = append(ops, patchOp{Op: "add", Path: "/fields/System.Description", Value: issue.Description})
 	}
+	// Azure models a subtask as a hierarchy link to the parent work item
+	// (Hierarchy-Reverse points from child to parent), added at create time.
+	if issue.ParentKey != "" {
+		_, parentID, err := parseIssueKey(issue.ParentKey)
+		if err != nil {
+			return nil, errors.WrapWithDetails(err, "invalid parent key", "parentKey", issue.ParentKey)
+		}
+		ops = append(ops, patchOp{
+			Op:   "add",
+			Path: "/relations/-",
+			Value: adoRelation{
+				Rel: hierarchyReverseRel,
+				URL: c.workItemURL(parentID),
+			},
+		})
+	}
 
 	body, err := json.Marshal(ops)
 	if err != nil {
@@ -167,6 +188,7 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 		Title:       wi.Fields.Title,
 		Description: wi.Fields.Description,
 		URL:         fmt.Sprintf("https://dev.azure.com/%s/%s/_workitems/edit/%d", c.org, project, wi.ID),
+		ParentKey:   issue.ParentKey,
 	}, nil
 }
 
@@ -481,8 +503,36 @@ func (c *Client) toTrackerIssue(wi adoWorkItem, project string) tracker.Issue {
 	if wi.Fields.CreatedBy != nil {
 		issue.Reporter = wi.Fields.CreatedBy.DisplayName
 	}
+	// Work item URLs are org-scoped (no project segment), so the parent is
+	// assumed to live in the same project as the child for key reconstruction.
+	if parentID := parentIDFromRelations(wi.Relations); parentID != "" {
+		issue.ParentKey = project + "/" + parentID
+	}
 
 	return issue
+}
+
+// hierarchyReverseRel is the Azure DevOps link type pointing from a child work
+// item to its parent.
+const hierarchyReverseRel = "System.LinkTypes.Hierarchy-Reverse"
+
+// workItemURL builds the org-scoped REST URL Azure expects when linking to a
+// work item by ID.
+func (c *Client) workItemURL(id int) string {
+	return fmt.Sprintf("%s/%s/_apis/wit/workItems/%d", strings.TrimRight(c.baseURL, "/"), url.PathEscape(c.org), id)
+}
+
+// parentIDFromRelations returns the numeric ID of the parent work item from a
+// hierarchy-reverse relation, or "" when the item has no parent.
+func parentIDFromRelations(relations []adoRelation) string {
+	for _, rel := range relations {
+		if rel.Rel == hierarchyReverseRel {
+			if idx := strings.LastIndex(rel.URL, "/"); idx >= 0 && idx < len(rel.URL)-1 {
+				return rel.URL[idx+1:]
+			}
+		}
+	}
+	return ""
 }
 
 // apisPath builds an Azure DevOps API path, scoped to a project when provided
