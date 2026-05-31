@@ -777,3 +777,14 @@ func TestAssignIssue_invalidKey(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid issue key format")
 }
+
+func TestCreateIssue_parentUnsupported(t *testing.T) {
+	client := New("http://localhost", "glpat-test")
+	_, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "mygroup/myproject",
+		Title:     "Child",
+		ParentKey: "mygroup/myproject#1",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not support subtasks")
+}
