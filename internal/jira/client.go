@@ -96,7 +96,7 @@ func (c *Client) ListIssues(ctx context.Context, opts tracker.ListOptions) ([]tr
 func (c *Client) GetIssue(ctx context.Context, key string) (*tracker.Issue, error) {
 	path := fmt.Sprintf("/rest/api/3/issue/%s", url.PathEscape(key))
 	query := url.Values{
-		"fields": {"summary,status,description,assignee,reporter,priority,issuetype"},
+		"fields": {"summary,status,description,assignee,reporter,priority,issuetype,parent"},
 	}
 
 	resp, err := c.doRequest(ctx, http.MethodGet, path, query.Encode(), nil)
@@ -119,6 +119,11 @@ func (c *Client) GetIssue(ctx context.Context, key string) (*tracker.Issue, erro
 		desc = adf.ToMarkdown(doc)
 	}
 
+	parentKey := ""
+	if f.Parent != nil {
+		parentKey = f.Parent.Key
+	}
+
 	return &tracker.Issue{
 		Key:         detail.Key,
 		Title:       f.Summary,
@@ -129,6 +134,7 @@ func (c *Client) GetIssue(ctx context.Context, key string) (*tracker.Issue, erro
 		Reporter:    nameOrEmpty(f.Reporter),
 		Description: desc,
 		URL:         c.baseURL + "/browse/" + detail.Key,
+		ParentKey:   parentKey,
 	}, nil
 }
 
@@ -141,6 +147,11 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 			IssueType:   nameOnly{Name: issue.Type},
 			Description: adf.FromMarkdown(issue.Description),
 		},
+	}
+	// Jira models subtasks as a parent link; the issue type must be a
+	// subtask-type (e.g. "Sub-task") for the server to accept it.
+	if issue.ParentKey != "" {
+		payload.Fields.Parent = &keyField{Key: issue.ParentKey}
 	}
 
 	body, err := json.Marshal(payload)
@@ -165,6 +176,7 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 		Title:       issue.Title,
 		Description: issue.Description,
 		URL:         c.baseURL + "/browse/" + result.Key,
+		ParentKey:   issue.ParentKey,
 	}, nil
 }
 
