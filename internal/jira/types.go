@@ -35,6 +35,7 @@ type issueDetailFields struct {
 	Reporter    *nameField      `json:"reporter"`
 	Description json.RawMessage `json:"description"`
 	IssueType   nameOnly        `json:"issuetype"`
+	Parent      *keyField       `json:"parent"`
 }
 
 type nameField struct {
@@ -51,6 +52,7 @@ type createFields struct {
 	Summary     string         `json:"summary"`
 	IssueType   nameOnly       `json:"issuetype"`
 	Description map[string]any `json:"description,omitempty"`
+	Parent      *keyField      `json:"parent,omitempty"`
 }
 
 type keyField struct {

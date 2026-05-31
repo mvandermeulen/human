@@ -16,7 +16,10 @@ type TrackerIssuesResult struct {
 	Project        string          `json:"project"`
 	Issues         []tracker.Issue `json:"issues"`
 	ReadyForReview []string        `json:"ready_for_review,omitempty"`
-	Err            string          `json:"error,omitempty"`
+	// ReadyForReviewPRs maps an engineering ticket key to the pull-request URL
+	// carried on its handoff comment's optional `pr:` line, when present.
+	ReadyForReviewPRs map[string]string `json:"ready_for_review_prs,omitempty"`
+	Err               string            `json:"error,omitempty"`
 }
 
 // Request is sent from the client to the daemon (one JSON line per connection).

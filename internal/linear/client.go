@@ -74,6 +74,7 @@ const getIssueQuery = `query($id: String!) {
 	issue(id: $id) {
 		identifier url title description state { name type } priorityLabel
 		assignee { name } creator { name } labels { nodes { name } }
+		parent { identifier }
 	}
 }`
 
@@ -118,8 +119,8 @@ const deleteIssueMutation = `mutation($id: String!) {
 	issueDelete(id: $id) { success }
 }`
 
-const createIssueMutation = `mutation($teamId: String!, $title: String!, $description: String, $projectId: String) {
-	issueCreate(input: { teamId: $teamId, title: $title, description: $description, projectId: $projectId }) {
+const createIssueMutation = `mutation($teamId: String!, $title: String!, $description: String, $projectId: String, $parentId: String) {
+	issueCreate(input: { teamId: $teamId, title: $title, description: $description, projectId: $projectId, parentId: $parentId }) {
 		success
 		issue { identifier url title description }
 	}
@@ -256,6 +257,15 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 	}
 	if projectID != "" {
 		vars["projectId"] = projectID
+	}
+	// Linear's parentId is the parent's internal UUID, not its human-facing
+	// identifier (e.g. "ENG-12"), so resolve the key the caller passed.
+	if issue.ParentKey != "" {
+		parentID, err := c.resolveIssueID(ctx, issue.ParentKey)
+		if err != nil {
+			return nil, err
+		}
+		vars["parentId"] = parentID
 	}
 
 	data, err := c.doGraphQL(ctx, createIssueMutation, vars)
@@ -656,6 +666,9 @@ func toTrackerIssue(li linearIssue, project string) tracker.Issue {
 		for _, n := range li.Labels.Nodes {
 			issue.Labels = append(issue.Labels, n.Name)
 		}
+	}
+	if li.Parent != nil {
+		issue.ParentKey = li.Parent.Identifier
 	}
 
 	return issue

@@ -113,6 +113,10 @@ func TestInstall_CreatesNewFiles(t *testing.T) {
 	gardeningComplexityAgentPath := filepath.Join(".claude", "agents", "gardening-complexity.md")
 	gardeningHygieneAgentPath := filepath.Join(".claude", "agents", "gardening-hygiene.md")
 	gardeningTriageAgentPath := filepath.Join(".claude", "agents", "gardening-triage.md")
+	autofixSkillPath := filepath.Join(".claude", "skills", "human-autofix", "SKILL.md")
+	bugTriageAgentPath := filepath.Join(".claude", "agents", "human-bug-triage.md")
+	bugFixerAgentPath := filepath.Join(".claude", "agents", "human-bug-fixer.md")
+	bugVerifyAgentPath := filepath.Join(".claude", "agents", "human-bug-verify.md")
 
 	assert.Equal(t, string(skillContent), string(fw.files[skillPath]))
 	assert.Equal(t, string(agentContent), string(fw.files[agentPath]))
@@ -159,6 +163,10 @@ func TestInstall_CreatesNewFiles(t *testing.T) {
 	assert.Equal(t, string(gardeningComplexityAgentContent), string(fw.files[gardeningComplexityAgentPath]))
 	assert.Equal(t, string(gardeningHygieneAgentContent), string(fw.files[gardeningHygieneAgentPath]))
 	assert.Equal(t, string(gardeningTriageAgentContent), string(fw.files[gardeningTriageAgentPath]))
+	assert.Equal(t, string(autofixSkillContent), string(fw.files[autofixSkillPath]))
+	assert.Equal(t, string(bugTriageAgentContent), string(fw.files[bugTriageAgentPath]))
+	assert.Equal(t, string(bugFixerAgentContent), string(fw.files[bugFixerAgentPath]))
+	assert.Equal(t, string(bugVerifyAgentContent), string(fw.files[bugVerifyAgentPath]))
 }
 
 func TestInstall_OverwritesIdenticalFiles(t *testing.T) {
@@ -209,6 +217,7 @@ func TestInstall_CreatesParentDirectories(t *testing.T) {
 	ideateSkillDir := filepath.Join(".claude", "skills", "human-ideate")
 	sprintSkillDir := filepath.Join(".claude", "skills", "human-sprint")
 	gardeningSkillDir := filepath.Join(".claude", "skills", "human-gardening")
+	autofixSkillDir := filepath.Join(".claude", "skills", "human-autofix")
 	agentDir := filepath.Join(".claude", "agents")
 	assert.True(t, fw.dirs[skillDir], "expected plan skill parent directory to be created")
 	assert.True(t, fw.dirs[readySkillDir], "expected ready skill parent directory to be created")
@@ -221,6 +230,7 @@ func TestInstall_CreatesParentDirectories(t *testing.T) {
 	assert.True(t, fw.dirs[ideateSkillDir], "expected ideate skill parent directory to be created")
 	assert.True(t, fw.dirs[sprintSkillDir], "expected sprint skill parent directory to be created")
 	assert.True(t, fw.dirs[gardeningSkillDir], "expected gardening skill parent directory to be created")
+	assert.True(t, fw.dirs[autofixSkillDir], "expected autofix skill parent directory to be created")
 	assert.True(t, fw.dirs[agentDir], "expected agent parent directory to be created")
 }
 

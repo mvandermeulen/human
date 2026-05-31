@@ -133,6 +133,15 @@ func (c *Client) GetIssue(ctx context.Context, key string) (*tracker.Issue, erro
 
 // CreateIssue implements tracker.Creator.
 func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracker.Issue, error) {
+	// GitLab's REST v4 API has no parent/child relationship for issues — that
+	// lives only in the GraphQL work-items API. Fail loudly rather than
+	// silently dropping the parent the caller asked for.
+	if issue.ParentKey != "" {
+		return nil, errors.WithDetails(
+			"gitlab does not support subtasks via the REST API; issue parent/child links require GitLab's GraphQL work-items API",
+			"parentKey", issue.ParentKey)
+	}
+
 	encodedProject, err := splitProject(issue.Project)
 	if err != nil {
 		return nil, err

@@ -103,6 +103,8 @@ human jira issue start KAN-1           # transition + assign
 human jira issue edit KAN-1 --title "New title"
 human jira issue comment add KAN-1 "Shipped"
 
+human pr create --head fix-login --title "Fix login" --body "Closes #42"  # open a PR; forge + repo derived from the git origin remote
+
 human search "retry logic"             # cross-tracker search
 human notion search "quarterly report" # Notion
 human figma file get <file-key>        # Figma
@@ -227,6 +229,7 @@ This writes skill and agent files to `.claude/` in the current directory. Re-run
 | `/human-brainstorm` | Explores the codebase and generates 2-3 implementation approaches |
 | `/human-plan` | Fetches a ticket and produces a structured implementation plan |
 | `/human-bug-plan` | Analyzes a bug ticket for root cause and writes a fix plan |
+| `/human-autofix` | Autonomously verifies, reproduces, fixes, and opens a PR for a bug end to end — the whole trail recorded on the tracker |
 | `/human-execute` | Loads a plan, executes step by step, runs a review checkpoint |
 | `/human-review` | Diffs the current branch against acceptance criteria |
 | `/human-findbugs` | Multi-agent pipeline to find logic errors, race conditions, and security issues |

@@ -28,9 +28,23 @@ type createRequest struct {
 }
 
 type createResponse struct {
+	ID     int    `json:"id"` // internal issue ID, required by the sub-issues endpoint
 	Number int    `json:"number"`
 	Title  string `json:"title"`
 	Body   string `json:"body"`
+}
+
+type pullCreateRequest struct {
+	Title string `json:"title"`
+	Head  string `json:"head"`
+	Base  string `json:"base"`
+	Body  string `json:"body,omitempty"`
+}
+
+type pullCreateResponse struct {
+	Number  int    `json:"number"`
+	Title   string `json:"title"`
+	HTMLURL string `json:"html_url"`
 }
 
 type commentRequest struct {

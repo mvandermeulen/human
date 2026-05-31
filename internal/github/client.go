@@ -14,10 +14,15 @@ import (
 
 	"github.com/gethuman-sh/human/errors"
 	"github.com/gethuman-sh/human/internal/apiclient"
+	"github.com/gethuman-sh/human/internal/forge"
 	"github.com/gethuman-sh/human/internal/tracker"
 )
 
-var _ tracker.Provider = (*Client)(nil)
+var (
+	_ tracker.Provider = (*Client)(nil)
+	// GitHub is both an issue tracker and a code forge.
+	_ forge.Forge = (*Client)(nil)
+)
 
 // Client is a GitHub REST API client that implements tracker.Lister,
 // tracker.Getter, and tracker.Creator.
@@ -181,13 +186,86 @@ func (c *Client) CreateIssue(ctx context.Context, issue *tracker.Issue) (*tracke
 		return nil, err
 	}
 
+	// GitHub has no parent field on create — the sub-issue link is a separate
+	// call keyed by the new issue's internal ID, made only once it exists.
+	if issue.ParentKey != "" {
+		if err := c.addSubIssue(ctx, issue.ParentKey, result.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	return &tracker.Issue{
 		Key:         fmt.Sprintf("%s/%s#%d", owner, repo, result.Number),
 		Project:     issue.Project,
 		Title:       result.Title,
 		Description: result.Body,
 		URL:         fmt.Sprintf("https://github.com/%s/%s/issues/%d", owner, repo, result.Number),
+		ParentKey:   issue.ParentKey,
 	}, nil
+}
+
+// CreatePullRequest implements forge.Creator via the GitHub pulls API.
+func (c *Client) CreatePullRequest(ctx context.Context, pr *forge.PullRequest) (*forge.PullRequest, error) {
+	owner, repo, err := splitProject(pr.Repo)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := pullCreateRequest{
+		Title: pr.Title,
+		Head:  pr.Head,
+		Base:  pr.Base,
+		Body:  pr.Body,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, errors.WrapWithDetails(err, "marshalling pull request request",
+			"repo", pr.Repo)
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/pulls", url.PathEscape(owner), url.PathEscape(repo))
+	resp, err := c.doRequest(ctx, http.MethodPost, path, "", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	var result pullCreateResponse
+	if err := apiclient.DecodeJSON(resp, &result, "repo", pr.Repo); err != nil {
+		return nil, err
+	}
+
+	return &forge.PullRequest{
+		Repo:   pr.Repo,
+		Base:   pr.Base,
+		Head:   pr.Head,
+		Title:  result.Title,
+		Body:   pr.Body,
+		Number: result.Number,
+		URL:    result.HTMLURL,
+	}, nil
+}
+
+// addSubIssue links a freshly created issue under a parent via GitHub's
+// sub-issues API. The parent is addressed by its issue number, while the child
+// is referenced by its internal ID (not its number).
+func (c *Client) addSubIssue(ctx context.Context, parentKey string, childID int) error {
+	owner, repo, number, err := parseIssueKey(parentKey)
+	if err != nil {
+		return errors.WrapWithDetails(err, "invalid parent key", "parentKey", parentKey)
+	}
+
+	payload, err := json.Marshal(map[string]int{"sub_issue_id": childID})
+	if err != nil {
+		return errors.WrapWithDetails(err, "marshalling sub-issue request", "parentKey", parentKey)
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s/issues/%d/sub_issues", url.PathEscape(owner), url.PathEscape(repo), number)
+	resp, err := c.doRequest(ctx, http.MethodPost, path, "", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	return nil
 }
 
 // AddComment implements tracker.Commenter.

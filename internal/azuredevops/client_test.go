@@ -796,3 +796,59 @@ func TestAdoCategoryToType(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateIssue_withParent(t *testing.T) {
+	var gotOps []patchOp
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, &gotOps))
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"id":99,"fields":{"System.Title":"Child","System.State":"New","System.WorkItemType":"Task","System.TeamProject":"Human"}}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "myorg", "pat-test")
+	issue, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "Human",
+		Title:     "Child",
+		ParentKey: "Human/42",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Human/99", issue.Key)
+	assert.Equal(t, "Human/42", issue.ParentKey)
+
+	require.Len(t, gotOps, 2)
+	relOp := gotOps[1]
+	assert.Equal(t, "/relations/-", relOp.Path)
+	val, ok := relOp.Value.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "System.LinkTypes.Hierarchy-Reverse", val["rel"])
+	assert.Contains(t, val["url"].(string), "/42")
+}
+
+func TestCreateIssue_invalidParent(t *testing.T) {
+	client := New("http://localhost", "myorg", "pat-test")
+	_, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "Human",
+		Title:     "Child",
+		ParentKey: "noslash",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid parent key")
+}
+
+func TestGetIssue_withParent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "relations", r.URL.Query().Get("$expand"))
+		_, _ = fmt.Fprint(w, `{"id":99,"fields":{"System.Title":"Child","System.State":"Active","System.WorkItemType":"Task","System.TeamProject":"Human"},"relations":[
+			{"rel":"System.LinkTypes.Hierarchy-Reverse","url":"https://dev.azure.com/myorg/_apis/wit/workItems/42"}
+		]}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "myorg", "pat-test")
+	issue, err := client.GetIssue(context.Background(), "Human/99")
+	require.NoError(t, err)
+	assert.Equal(t, "Human/42", issue.ParentKey)
+}

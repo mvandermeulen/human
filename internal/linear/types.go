@@ -12,6 +12,12 @@ type linearIssue struct {
 	Creator       *nameNode       `json:"creator"`
 	Labels        labelConnection `json:"labels"`
 	UpdatedAt     string          `json:"updatedAt"`
+	Parent        *identifierNode `json:"parent"`
+}
+
+// identifierNode holds a related issue's human-facing identifier (e.g. "ENG-12").
+type identifierNode struct {
+	Identifier string `json:"identifier"`
 }
 
 type nameNode struct {

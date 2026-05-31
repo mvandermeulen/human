@@ -42,6 +42,24 @@ func ParseEngineeringKeysFromHandoff(body string) []string {
 	return nil
 }
 
+// ParsePRFromHandoff extracts the pull-request URL from the optional `pr:`
+// line of a [human:ready-for-review] comment body. Returns "" when the body is
+// not a handoff block or carries no pr: line (the line is optional — handoffs
+// from flows that only push a branch omit it).
+func ParsePRFromHandoff(body string) string {
+	trimmed := strings.TrimSpace(body)
+	if !strings.HasPrefix(trimmed, ReadyForReviewHeader) {
+		return ""
+	}
+	for _, line := range strings.Split(trimmed, "\n") {
+		line = strings.TrimSpace(line)
+		if rest, ok := strings.CutPrefix(line, "pr:"); ok {
+			return strings.TrimSpace(rest)
+		}
+	}
+	return ""
+}
+
 // IsReviewComplete reports whether the comment body is a review-complete
 // follow-up, which supersedes any earlier handoff for the same engineering
 // keys.

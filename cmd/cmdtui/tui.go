@@ -41,6 +41,7 @@ type trackerIssues struct {
 	Project        string
 	Issues         []tracker.Issue
 	ReadyForReview map[string]bool // issue keys currently flagged ready for review (see CLAUDE.md Review handoff)
+	ReadyForReviewPRs map[string]string // issue key -> pull-request URL from the handoff's pr: line, when present
 	Err            error
 }
 
@@ -1913,6 +1914,9 @@ func fromDaemonResults(results []daemon.TrackerIssuesResult) []trackerIssues {
 			}
 			out[i].ReadyForReview = set
 		}
+		if len(r.ReadyForReviewPRs) > 0 {
+			out[i].ReadyForReviewPRs = r.ReadyForReviewPRs
+		}
 		if r.Err != "" {
 			out[i].Err = fmt.Errorf("%s", r.Err)
 		}
@@ -2066,15 +2070,11 @@ func renderIssuesPanel(groups []trackerIssues, fetchedAt time.Time, w, cursor in
 			if issue.IsBug() {
 				bugMarker = errorStyle.Render("(B)")
 			}
-			reviewMarker := "   "
-			if g.ReadyForReview[issue.Key] {
-				reviewMarker = specialStyle.Render("(R)")
-			}
 			_, _ = fmt.Fprintf(&b, "%s%-12s %s %s %-14s %s\n",
 				prefix,
 				keyStyle.Render(issue.Key),
 				bugMarker,
-				reviewMarker,
+				reviewMarker(g.ReadyForReview[issue.Key], g.ReadyForReviewPRs[issue.Key]),
 				stageStyled,
 				title)
 			flatIdx++
@@ -2089,6 +2089,22 @@ func renderIssuesPanel(groups []trackerIssues, fetchedAt time.Time, w, cursor in
 // with consecutive-host dedup counts and a small source tag.
 //
 // available is the vertical budget in rows. When available <= 1 the
+// reviewMarker renders the (R) ready-for-review annotation. When a pull-request
+// URL is known (from the handoff's pr: line), the marker is wrapped in an OSC 8
+// hyperlink so it opens the PR in terminals that support clickable links;
+// terminals that don't simply show "(R)". Returns blank spacing when the issue
+// is not flagged for review.
+func reviewMarker(ready bool, prURL string) string {
+	if !ready {
+		return "   "
+	}
+	marker := specialStyle.Render("(R)")
+	if prURL == "" {
+		return marker
+	}
+	return "\x1b]8;;" + prURL + "\x1b\\" + marker + "\x1b]8;;\x1b\\"
+}
+
 // panel renders nothing so the footer cannot be clipped on very short
 // terminals. Zero events also collapses to nothing rather than leaving
 // a visible empty frame.

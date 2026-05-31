@@ -1593,3 +1593,62 @@ func TestDeleteIssue_resolveIssueIDError(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestCreateIssue_withParent(t *testing.T) {
+	srv := httptest.NewServer(&graphQLHandler{
+		t: t,
+		handlers: map[string]func(vars map[string]any) string{
+			"teams(": func(_ map[string]any) string {
+				return `{"data":{"teams":{"nodes":[{"id":"team-uuid-123"}]}}}`
+			},
+			"projects(": func(_ map[string]any) string {
+				return `{"data":{"projects":{"nodes":[]}}}`
+			},
+			// resolveIssueID looks up the parent's internal UUID by identifier.
+			"issue(": func(vars map[string]any) string {
+				assert.Equal(t, "ENG-1", vars["id"])
+				return `{"data":{"issue":{"id":"parent-uuid-1"}}}`
+			},
+			"issueCreate(": func(vars map[string]any) string {
+				assert.Equal(t, "parent-uuid-1", vars["parentId"])
+				return `{"data":{"issueCreate":{"success":true,"issue":{
+					"identifier":"ENG-2","title":"Child","description":"",
+					"state":{"name":""},"priorityLabel":"","assignee":null,"creator":null,
+					"labels":{"nodes":[]}
+				}}}}`
+			},
+		},
+	})
+	defer srv.Close()
+
+	client := New(srv.URL, "lin_test")
+	issue, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "ENG",
+		Title:     "Child",
+		ParentKey: "ENG-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "ENG-2", issue.Key)
+}
+
+func TestGetIssue_withParent(t *testing.T) {
+	srv := httptest.NewServer(&graphQLHandler{
+		t: t,
+		handlers: map[string]func(vars map[string]any) string{
+			"issue(": func(_ map[string]any) string {
+				return `{"data":{"issue":{
+					"identifier":"ENG-2","title":"Child","description":"",
+					"state":{"name":"Todo","type":"unstarted"},"priorityLabel":"",
+					"assignee":null,"creator":null,"labels":{"nodes":[]},
+					"parent":{"identifier":"ENG-1"}
+				}}}`
+			},
+		},
+	})
+	defer srv.Close()
+
+	client := New(srv.URL, "lin_test")
+	issue, err := client.GetIssue(context.Background(), "ENG-2")
+	require.NoError(t, err)
+	assert.Equal(t, "ENG-1", issue.ParentKey)
+}

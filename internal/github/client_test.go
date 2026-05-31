@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gethuman-sh/human/internal/forge"
 	"github.com/gethuman-sh/human/internal/tracker"
 
 	"github.com/stretchr/testify/assert"
@@ -255,6 +256,71 @@ func TestCreateIssue_httpError(t *testing.T) {
 		Title:   "Will fail",
 	})
 
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "returned")
+}
+
+func TestCreatePullRequest_happy(t *testing.T) {
+	var gotBody pullCreateRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/repos/octocat/hello-world/pulls", r.URL.Path)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, &gotBody))
+
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprint(w, `{"number":42,"title":"Fix login","html_url":"https://github.com/octocat/hello-world/pull/42"}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "ghp_test")
+	pr, err := client.CreatePullRequest(context.Background(), &forge.PullRequest{
+		Repo:  "octocat/hello-world",
+		Base:  "main",
+		Head:  "autofix/hum-105",
+		Title: "Fix login",
+		Body:  "Closes octocat/hello-world#7",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 42, pr.Number)
+	assert.Equal(t, "https://github.com/octocat/hello-world/pull/42", pr.URL)
+	assert.Equal(t, "Fix login", pr.Title)
+
+	assert.Equal(t, "Fix login", gotBody.Title)
+	assert.Equal(t, "autofix/hum-105", gotBody.Head)
+	assert.Equal(t, "main", gotBody.Base)
+	assert.Equal(t, "Closes octocat/hello-world#7", gotBody.Body)
+}
+
+func TestCreatePullRequest_invalidRepo(t *testing.T) {
+	client := New("https://api.github.com", "ghp_test")
+	_, err := client.CreatePullRequest(context.Background(), &forge.PullRequest{
+		Repo:  "no-slash",
+		Base:  "main",
+		Head:  "feature",
+		Title: "x",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "owner/repo")
+}
+
+func TestCreatePullRequest_httpError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "ghp_test")
+	_, err := client.CreatePullRequest(context.Background(), &forge.PullRequest{
+		Repo:  "octocat/hello-world",
+		Base:  "main",
+		Head:  "feature",
+		Title: "Will fail",
+	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "returned")
 }
@@ -981,4 +1047,58 @@ func TestTransitionIssue_caseInsensitive(t *testing.T) {
 	client := New(srv.URL, "ghp_test")
 	err := client.TransitionIssue(context.Background(), "octocat/hello-world#1", "Open")
 	require.NoError(t, err)
+}
+
+func TestCreateIssue_withParent(t *testing.T) {
+	var subIssueBody map[string]int
+	createCalled, subCalled := false, false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/octocat/hello-world/issues":
+			createCalled = true
+			w.WriteHeader(http.StatusCreated)
+			_, _ = fmt.Fprint(w, `{"id":555,"number":99,"title":"Child","body":""}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/octocat/hello-world/issues/7/sub_issues":
+			subCalled = true
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(body, &subIssueBody))
+			w.WriteHeader(http.StatusCreated)
+			_, _ = fmt.Fprint(w, `{}`)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "ghp_test")
+	issue, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "octocat/hello-world",
+		Title:     "Child",
+		ParentKey: "octocat/hello-world#7",
+	})
+	require.NoError(t, err)
+	assert.True(t, createCalled, "create endpoint should be called")
+	assert.True(t, subCalled, "sub_issues endpoint should be called")
+	assert.Equal(t, 555, subIssueBody["sub_issue_id"]) // child's internal id, not its number
+	assert.Equal(t, "octocat/hello-world#99", issue.Key)
+	assert.Equal(t, "octocat/hello-world#7", issue.ParentKey)
+}
+
+func TestCreateIssue_invalidParent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprint(w, `{"id":555,"number":99,"title":"Child","body":""}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "ghp_test")
+	_, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "octocat/hello-world",
+		Title:     "Child",
+		ParentKey: "nohash",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid parent key")
 }

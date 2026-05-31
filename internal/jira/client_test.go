@@ -660,3 +660,41 @@ func TestListStatuses_httpError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "returned")
 }
+
+func TestCreateIssue_withParent(t *testing.T) {
+	var gotBody createRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(body, &gotBody))
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprint(w, `{"id":"10005","key":"KAN-50"}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "user@example.com", "token")
+	issue, err := client.CreateIssue(context.Background(), &tracker.Issue{
+		Project:   "KAN",
+		Type:      "Sub-task",
+		Title:     "Child",
+		ParentKey: "KAN-1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "KAN-50", issue.Key)
+	assert.Equal(t, "KAN-1", issue.ParentKey)
+	require.NotNil(t, gotBody.Fields.Parent)
+	assert.Equal(t, "KAN-1", gotBody.Fields.Parent.Key)
+}
+
+func TestGetIssue_withParent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Query().Get("fields"), "parent")
+		_, _ = fmt.Fprint(w, `{"key":"KAN-50","fields":{"summary":"Child","status":{"name":"To Do"},"issuetype":{"name":"Sub-task"},"parent":{"key":"KAN-1"}}}`)
+	}))
+	defer srv.Close()
+
+	client := New(srv.URL, "user@example.com", "token")
+	issue, err := client.GetIssue(context.Background(), "KAN-50")
+	require.NoError(t, err)
+	assert.Equal(t, "KAN-1", issue.ParentKey)
+}

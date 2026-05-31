@@ -16,6 +16,7 @@ func TestLatestReadyKeys(t *testing.T) {
 		name     string
 		comments []tracker.Comment
 		want     []string
+		wantPR   string
 	}{
 		{
 			name: "single handoff returns its keys",
@@ -24,6 +25,14 @@ func TestLatestReadyKeys(t *testing.T) {
 				{Body: "[human:ready-for-review]\nengineering: HUM-89", Created: t0.Add(time.Minute)},
 			},
 			want: []string{"HUM-89"},
+		},
+		{
+			name: "handoff with pr line returns the URL",
+			comments: []tracker.Comment{
+				{Body: "[human:ready-for-review]\nengineering: HUM-89\npr: https://github.com/o/r/pull/7", Created: t0},
+			},
+			want:   []string{"HUM-89"},
+			wantPR: "https://github.com/o/r/pull/7",
 		},
 		{
 			name: "later review-complete clears the flag",
@@ -69,8 +78,9 @@ func TestLatestReadyKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := latestReadyKeys(tt.comments)
+			got, gotPR := latestReadyKeys(tt.comments)
 			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantPR, gotPR)
 		})
 	}
 }
