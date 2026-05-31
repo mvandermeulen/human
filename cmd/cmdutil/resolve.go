@@ -13,6 +13,7 @@ import (
 	"github.com/gethuman-sh/human/internal/config"
 	"github.com/gethuman-sh/human/internal/dispatch"
 	"github.com/gethuman-sh/human/internal/env"
+	"github.com/gethuman-sh/human/internal/forge"
 	"github.com/gethuman-sh/human/internal/slack"
 	"github.com/gethuman-sh/human/internal/telegram"
 	"github.com/gethuman-sh/human/internal/tracker"
@@ -99,6 +100,36 @@ func ResolveProvider(cmd *cobra.Command, kind string, deps Deps) (tracker.Provid
 
 	p, dpCleanup := applyDestructiveWrapper(ctx, p, instance.Name, instance.Kind, deps, os.Stderr)
 	return p, func() { dpCleanup(); auditCleanup() }, nil
+}
+
+// ResolveForge resolves the configured instance for the given kind and returns
+// it as a forge.Forge (code-host) capability. Forge operations (opening a PR)
+// are intentionally not wrapped by the tracker decorator chain: they do not
+// mutate tracker data and have no audit/policy semantics. A clear error is
+// returned when the resolved backend is not a forge (e.g. a pure issue tracker).
+func ResolveForge(cmd *cobra.Command, kind string, deps Deps) (forge.Forge, error) {
+	ctx := cmdContext(cmd)
+	instances, err := loadInstancesCtx(ctx, deps)
+	if err != nil {
+		return nil, err
+	}
+
+	if inst := deps.InstanceFromFlags(cmd); inst != nil {
+		instances = append(instances, *inst)
+	}
+
+	trackerName, _ := cmd.Root().PersistentFlags().GetString("tracker")
+
+	instance, err := tracker.ResolveByKind(kind, instances, trackerName)
+	if err != nil {
+		return nil, err
+	}
+
+	f, ok := instance.Provider.(forge.Forge)
+	if !ok {
+		return nil, errors.WithDetails("pull requests not supported by this tracker", "kind", kind)
+	}
+	return f, nil
 }
 
 // ResolveAutoProvider loads all instances, applies flag overrides, and resolves

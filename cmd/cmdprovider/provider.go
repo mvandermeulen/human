@@ -14,6 +14,7 @@ import (
 
 	"github.com/gethuman-sh/human/cmd/cmdutil"
 	"github.com/gethuman-sh/human/errors"
+	"github.com/gethuman-sh/human/internal/forge"
 	"github.com/gethuman-sh/human/internal/tracker"
 )
 
@@ -39,7 +40,20 @@ func BuildProviderCommands(kind string, deps cmdutil.Deps) []*cobra.Command {
 	issueCmd.AddCommand(buildIssueStatusesCmd(kind, deps))
 	issueCmd.AddCommand(buildIssueStatusSetCmd(kind, deps))
 
-	return []*cobra.Command{issuesCmd, issueCmd}
+	cmds := []*cobra.Command{issuesCmd, issueCmd}
+
+	// Only code forges (GitHub, …) expose pull-request operations; pure issue
+	// trackers must not advertise a `pr` command they can't fulfil.
+	if forge.IsForgeKind(kind) {
+		prCmd := &cobra.Command{
+			Use:   "pr",
+			Short: "Pull request operations",
+		}
+		prCmd.AddCommand(buildPRCreateCmd(kind, deps))
+		cmds = append(cmds, prCmd)
+	}
+
+	return cmds
 }
 
 func buildIssuesListCmd(kind string, deps cmdutil.Deps) *cobra.Command {
@@ -102,6 +116,33 @@ func buildIssueCreateCmd(kind string, deps cmdutil.Deps) *cobra.Command {
 	cmd.Flags().StringVar(&typ, "type", "Task", "Issue type (Jira only, e.g. Task, Bug, Story)")
 	cmd.Flags().StringVar(&description, "description", "", "Issue description in markdown (separate from title)")
 	cmd.Flags().StringVar(&parent, "parent", "", "Parent issue key to create this as a subtask (Linear, Jira, Shortcut, Azure DevOps, GitHub, ClickUp; not supported on GitLab)")
+	return cmd
+}
+
+func buildPRCreateCmd(kind string, deps cmdutil.Deps) *cobra.Command {
+	var repo, base, head, title, body string
+
+	cmd := &cobra.Command{
+		Use:     "create",
+		Short:   "Open a pull request",
+		Example: `  human github pr create --repo=octocat/hello-world --head=fix-login --base=main --title "Fix login" --body "Closes #42"`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			f, err := cmdutil.ResolveForge(cmd, kind, deps)
+			if err != nil {
+				return err
+			}
+			return RunCreatePullRequest(cmd.Context(), f, cmd.OutOrStdout(), repo, base, head, title, body)
+		},
+	}
+	cmd.Flags().StringVar(&repo, "repo", "", "Repository (GitHub: owner/repo)")
+	_ = cmd.MarkFlagRequired("repo")
+	cmd.Flags().StringVar(&head, "head", "", "Head branch holding the changes")
+	_ = cmd.MarkFlagRequired("head")
+	cmd.Flags().StringVar(&base, "base", "main", "Base branch to merge into")
+	cmd.Flags().StringVar(&title, "title", "", "Pull request title")
+	_ = cmd.MarkFlagRequired("title")
+	cmd.Flags().StringVar(&body, "body", "", "Pull request description in markdown")
 	return cmd
 }
 
@@ -325,6 +366,25 @@ func RunCreateIssue(ctx context.Context, p tracker.Provider, out io.Writer, proj
 		return errors.WithDetails("create returned no issue", "project", project)
 	}
 	_, _ = fmt.Fprintf(out, "%s\t%s\n", issue.Key, issue.Title)
+	return nil
+}
+
+// RunCreatePullRequest opens a pull request on a code forge and prints the URL.
+func RunCreatePullRequest(ctx context.Context, f forge.Creator, out io.Writer, repo, base, head, title, body string) error {
+	pr, err := f.CreatePullRequest(ctx, &forge.PullRequest{
+		Repo:  repo,
+		Base:  base,
+		Head:  head,
+		Title: title,
+		Body:  body,
+	})
+	if err != nil {
+		return err
+	}
+	if pr == nil {
+		return errors.WithDetails("create returned no pull request", "repo", repo)
+	}
+	_, _ = fmt.Fprintf(out, "%s\t%s\n", pr.URL, pr.Title)
 	return nil
 }
 

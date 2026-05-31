@@ -13,8 +13,19 @@ import (
 
 	"github.com/gethuman-sh/human/cmd/cmdutil"
 	"github.com/gethuman-sh/human/errors"
+	"github.com/gethuman-sh/human/internal/forge"
 	"github.com/gethuman-sh/human/internal/tracker"
 )
+
+// --- fake forge.Creator ---
+
+type fakeForge struct {
+	createFn func(ctx context.Context, pr *forge.PullRequest) (*forge.PullRequest, error)
+}
+
+func (f *fakeForge) CreatePullRequest(ctx context.Context, pr *forge.PullRequest) (*forge.PullRequest, error) {
+	return f.createFn(ctx, pr)
+}
 
 // --- mock tracker.Provider ---
 
@@ -263,6 +274,41 @@ func TestRunCreateIssue_Error(t *testing.T) {
 	err := RunCreateIssue(context.Background(), p, &buf, "KAN", "Task", "Title", "", "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "create failed")
+}
+
+func TestRunCreatePullRequest_Success(t *testing.T) {
+	f := &fakeForge{
+		createFn: func(_ context.Context, pr *forge.PullRequest) (*forge.PullRequest, error) {
+			assert.Equal(t, "octocat/hello-world", pr.Repo)
+			assert.Equal(t, "main", pr.Base)
+			assert.Equal(t, "fix-login", pr.Head)
+			assert.Equal(t, "Fix login", pr.Title)
+			return &forge.PullRequest{
+				Number: 7,
+				Title:  "Fix login",
+				URL:    "https://github.com/octocat/hello-world/pull/7",
+			}, nil
+		},
+	}
+
+	var buf bytes.Buffer
+	err := RunCreatePullRequest(context.Background(), f, &buf, "octocat/hello-world", "main", "fix-login", "Fix login", "body")
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "https://github.com/octocat/hello-world/pull/7")
+	assert.Contains(t, buf.String(), "Fix login")
+}
+
+func TestRunCreatePullRequest_Error(t *testing.T) {
+	f := &fakeForge{
+		createFn: func(_ context.Context, _ *forge.PullRequest) (*forge.PullRequest, error) {
+			return nil, errors.WithDetails("pr failed")
+		},
+	}
+
+	var buf bytes.Buffer
+	err := RunCreatePullRequest(context.Background(), f, &buf, "octocat/hello-world", "main", "fix-login", "Fix login", "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "pr failed")
 }
 
 // --- RunEditIssue tests ---
@@ -770,6 +816,31 @@ func TestBuildProviderCommands_ReturnsExpectedCommands(t *testing.T) {
 	assert.True(t, subNames["start"], "expected 'start' subcommand")
 	assert.True(t, subNames["statuses"], "expected 'statuses' subcommand")
 	assert.True(t, subNames["status"], "expected 'status' subcommand")
+}
+
+func TestBuildProviderCommands_ForgeKindHasPRCommand(t *testing.T) {
+	cmds := BuildProviderCommands("github", cmdutil.Deps{})
+
+	var prCmd *cobra.Command
+	for _, c := range cmds {
+		if c.Name() == "pr" {
+			prCmd = c
+		}
+	}
+	require.NotNil(t, prCmd, "github should expose a 'pr' command")
+
+	subNames := make(map[string]bool)
+	for _, sub := range prCmd.Commands() {
+		subNames[sub.Name()] = true
+	}
+	assert.True(t, subNames["create"], "expected 'create' subcommand under pr")
+}
+
+func TestBuildProviderCommands_NonForgeKindHasNoPRCommand(t *testing.T) {
+	cmds := BuildProviderCommands("jira", cmdutil.Deps{})
+	for _, c := range cmds {
+		assert.NotEqual(t, "pr", c.Name(), "non-forge kind must not expose a 'pr' command")
+	}
 }
 
 func TestBuildProviderCommands_IssuesHasListSubcommand(t *testing.T) {
