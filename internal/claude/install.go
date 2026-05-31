@@ -145,6 +145,18 @@ var gardeningHygieneAgentContent []byte
 //go:embed embed/gardening-triage-agent.md
 var gardeningTriageAgentContent []byte
 
+//go:embed embed/human-autofix-skill.md
+var autofixSkillContent []byte
+
+//go:embed embed/human-bug-triage-agent.md
+var bugTriageAgentContent []byte
+
+//go:embed embed/human-bug-fixer-agent.md
+var bugFixerAgentContent []byte
+
+//go:embed embed/human-bug-verify-agent.md
+var bugVerifyAgentContent []byte
+
 var userHomeDir = os.UserHomeDir
 
 // FileWriter abstracts filesystem operations for testability.
@@ -232,6 +244,10 @@ func Install(w io.Writer, fw FileWriter, personal bool) error {
 		{content: gardeningComplexityAgentContent, relPath: filepath.Join("agents", "gardening-complexity.md")},
 		{content: gardeningHygieneAgentContent, relPath: filepath.Join("agents", "gardening-hygiene.md")},
 		{content: gardeningTriageAgentContent, relPath: filepath.Join("agents", "gardening-triage.md")},
+		{content: autofixSkillContent, relPath: filepath.Join("skills", "human-autofix", "SKILL.md")},
+		{content: bugTriageAgentContent, relPath: filepath.Join("agents", "human-bug-triage.md")},
+		{content: bugFixerAgentContent, relPath: filepath.Join("agents", "human-bug-fixer.md")},
+		{content: bugVerifyAgentContent, relPath: filepath.Join("agents", "human-bug-verify.md")},
 	}
 
 	for _, f := range files {
