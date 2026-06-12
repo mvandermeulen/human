@@ -1,5 +1,11 @@
 version: 2
 
+# Release binaries embed the GUI frontend; build it before the Go builds
+# so go:embed picks up the Vite output in internal/gui/dist.
+before:
+  hooks:
+    - make web
+
 builds:
   - main: .
     binary: human

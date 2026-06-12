@@ -78,7 +78,7 @@ devcontainer up --workspace-folder .
 | Infrastructure | Daemon mode, HTTPS proxy/firewall, Chrome Bridge, OAuth forwarding |
 | Governance | Declarative policy rules in `.humanconfig` (block/confirm agent operations) |
 | Skills | Ideate, sprint, ready, brainstorm, plan, execute, review, done, findbugs, security |
-| Dashboard | TUI with agent monitoring, token usage, tracker issues, pipeline state |
+| Dashboard | TUI and browser GUI with agent monitoring, token usage, tracker issues, pipeline state |
 | Search | Cross-tracker and Notion full-text index |
 
 ## Dashboard
@@ -90,6 +90,18 @@ human tui
 <img src="human-tui.png" width="960" alt="human TUI dashboard">
 
 The TUI shows running Claude Code instances, token usage per 5-hour window, daemon status, and connected containers — all in one view. It auto-starts the daemon if needed.
+
+### Browser GUI
+
+```bash
+human gui
+```
+
+The same dashboard in the browser: instances with per-model token bars, the ticket pipeline with `(B)` bug and `(R)` ready-for-review markers, network activity, and tool statistics — live over WebSocket. The keymap matches the TUI (`j`/`k` navigate, `Enter` dispatches an agent for the selected issue, `o` opens it in the tracker, `n` creates a ticket, `a` spawns an agent with a custom prompt, `l` cycles the traffic log mode, `y`/`n` answer destructive-operation confirmations).
+
+Unlike the TUI, agents dispatched from the GUI run as headless devcontainer agents managed by the daemon — no tmux required. The GUI is served by the daemon on `127.0.0.1:19288` (configurable via `daemon start --gui-addr`; keep it loopback — auth uses a cookie over plain HTTP). `human gui` auto-starts the daemon and opens an authenticated browser session; `human gui --no-browser` prints the URL instead.
+
+Release binaries ship with the GUI embedded. When building from source, `make build` produces a binary that serves a placeholder page; run `make build-full` (requires node ≥ 20) to embed the frontend.
 
 ## CLI usage
 
@@ -311,7 +323,8 @@ See [documentation.md](docs/documentation.md) for full configuration details.
 ## Build
 
 ```bash
-make build
+make build        # Go binary (GUI serves a placeholder page)
+make build-full   # build the GUI frontend (node >= 20) and embed it
 ```
 
 ## Star History

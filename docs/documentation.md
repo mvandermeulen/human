@@ -133,7 +133,10 @@ When running AI agents inside devcontainers, credentials should stay on the host
 human daemon start [--addr=:19285]   # start listening, print token, block until Ctrl-C
 human daemon token                    # print current token (generate if needed)
 human daemon status [--addr=...]      # check if daemon is reachable
+human gui [--no-browser]              # open the browser dashboard (served by the daemon)
 ```
+
+The daemon also serves the browser GUI on `--gui-addr` (default `127.0.0.1:19288`). Keep this listener on loopback: the browser authenticates via `/auth?token=…`, which sets an HttpOnly cookie over plain HTTP. Agents dispatched from the GUI run as daemon-managed headless devcontainer agents (no tmux needed).
 
 ### Authentication
 

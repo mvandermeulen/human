@@ -1,4 +1,4 @@
-.PHONY: all build install test check-test test-integration coverage coverage-check fuzz lint sec secrets check clean upgrade-deps release hooks unhooks
+.PHONY: all build build-full web web-test install test check-test test-integration coverage coverage-check fuzz lint sec secrets check clean upgrade-deps release hooks unhooks
 
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 
@@ -8,6 +8,18 @@ build:
 
 install:
 	go install .
+
+# web builds the GUI frontend into internal/gui/dist so go:embed picks it
+# up. Requires node >= 20. Plain `build`/`check` stay node-free: binaries
+# built without `web` serve a placeholder page at /.
+web:
+	cd web && npm ci && npm run build
+
+web-test:
+	cd web && npm ci && npx vitest run
+
+# build-full produces a binary with the GUI assets embedded.
+build-full: web build
 
 test:
 	go tool gotestsum ./...
