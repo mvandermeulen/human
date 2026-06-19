@@ -1486,3 +1486,18 @@ func TestReviewMarker(t *testing.T) {
 	assert.Contains(t, linked, "(R)")
 	assert.Contains(t, linked, "\x1b]8;;https://github.com/o/r/pull/7\x1b\\")
 }
+
+func TestBuildPaneCmd(t *testing.T) {
+	const agentCmd = "human agent start agent-1 --prompt /human-execute HUM-42"
+
+	// Interactive sessions block in the pane, then tear the container down.
+	interactive := buildPaneCmd(agentCmd, "human", "agent-1", true)
+	assert.Contains(t, interactive, "human agent stop --async agent-1")
+
+	// Dispatched (--prompt) agents run detached: stopping would kill the agent
+	// the instant it is triggered, so no stop must be issued.
+	dispatched := buildPaneCmd(agentCmd, "human", "agent-1", false)
+	assert.NotContains(t, dispatched, "agent stop")
+	// Both modes still hold the pane open on failure to surface the error.
+	assert.Contains(t, dispatched, "Press enter to close")
+}
