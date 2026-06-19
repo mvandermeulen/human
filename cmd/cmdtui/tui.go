@@ -35,14 +35,14 @@ const defaultWidth = 80
 
 // trackerIssues groups issues from one tracker instance and project.
 type trackerIssues struct {
-	TrackerName    string
-	TrackerKind    string
-	TrackerRole    string // "pm", "engineering", or empty
-	Project        string
-	Issues         []tracker.Issue
-	ReadyForReview map[string]bool // issue keys currently flagged ready for review (see CLAUDE.md Review handoff)
+	TrackerName       string
+	TrackerKind       string
+	TrackerRole       string // "pm", "engineering", or empty
+	Project           string
+	Issues            []tracker.Issue
+	ReadyForReview    map[string]bool   // issue keys currently flagged ready for review (see CLAUDE.md Review handoff)
 	ReadyForReviewPRs map[string]string // issue key -> pull-request URL from the handoff's pr: line, when present
-	Err            error
+	Err               error
 }
 
 // flatIssue is a single issue with its tracker context, used for cursor indexing.
@@ -542,13 +542,17 @@ func (m model) handleDispatch() (tea.Model, tea.Cmd) {
 
 func dispatchIssueCmd(name, projectDir, tmuxTarget, prompt, issueKey string) tea.Cmd {
 	return func() tea.Msg {
-		err := spawnAgentInTmux(name, projectDir, tmuxTarget, "--prompt", prompt, "--skip-permissions")
+		err := spawnAgentInTmux(name, projectDir, tmuxTarget, false, "--prompt", prompt, "--skip-permissions")
 		return dispatchResultMsg{issueKey: issueKey, agentName: name, err: err}
 	}
 }
 
 // spawnAgentInTmux splits a new tmux pane and starts a human agent there.
-func spawnAgentInTmux(name, projectDir, tmuxTarget string, extraFlags ...string) error {
+// stopOnExit governs cleanup: interactive sessions block in the pane until
+// Claude exits and then want the container torn down, whereas dispatched
+// (--prompt) agents launch detached and must keep running after the spawning
+// command returns.
+func spawnAgentInTmux(name, projectDir, tmuxTarget string, stopOnExit bool, extraFlags ...string) error {
 	humanExe, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("cannot find executable: %w", err)
@@ -560,8 +564,11 @@ func spawnAgentInTmux(name, projectDir, tmuxTarget string, extraFlags ...string)
 		parts = append(parts, "--workspace", projectDir)
 		paneDir = projectDir
 	}
-	agentCmd := strings.Join(parts, " ")
-	cmd := fmt.Sprintf("%s; EC=$?; %s agent stop --async %s 2>/dev/null; [ $EC -ne 0 ] && { echo; echo 'Press enter to close'; read; }", agentCmd, humanExe, name)
+	// The pane command is interpreted by a shell, so every token must be quoted.
+	// The dispatch prompt (e.g. "/human-execute HUM-42") contains a space; left
+	// unquoted the shell splits it and `agent start` sees an extra positional
+	// argument, failing with "accepts 1 arg(s), received 2".
+	cmd := buildPaneCmd(shellJoin(parts), shellQuote(humanExe), name, stopOnExit)
 	tmuxArgs := []string{"split-window", "-h", "-c", paneDir}
 	if tmuxTarget != "" {
 		tmuxArgs = append(tmuxArgs, "-t", tmuxTarget)
@@ -579,6 +586,36 @@ func spawnAgentInTmux(name, projectDir, tmuxTarget string, extraFlags ...string)
 	}
 	_, _ = runner.Run(context.Background(), "tmux", "select-layout", "-t", layoutTarget, "even-horizontal")
 	return nil
+}
+
+// buildPaneCmd assembles the shell line run inside the spawned tmux pane.
+// When stopOnExit is set, an `agent stop` follows the agent command so the
+// container is torn down once an interactive Claude session ends. Dispatched
+// agents run detached, so stopping would kill them the instant they start —
+// there the pane only lingers on failure to surface the error.
+func buildPaneCmd(agentCmd, humanExe, name string, stopOnExit bool) string {
+	const holdOnError = `[ $EC -ne 0 ] && { echo; echo 'Press enter to close'; read; }`
+	if stopOnExit {
+		return fmt.Sprintf("%s; EC=$?; %s agent stop --async %s 2>/dev/null; %s", agentCmd, humanExe, name, holdOnError)
+	}
+	return fmt.Sprintf("%s; EC=$?; %s", agentCmd, holdOnError)
+}
+
+// shellQuote wraps a token in single quotes so a POSIX shell treats it as one
+// literal argument, preserving spaces and metacharacters. Embedded single
+// quotes are closed, escaped, and reopened ('\'').
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// shellJoin shell-quotes each token and joins them with spaces into a single
+// command line safe to hand to a shell.
+func shellJoin(parts []string) string {
+	quoted := make([]string, len(parts))
+	for i, p := range parts {
+		quoted[i] = shellQuote(p)
+	}
+	return strings.Join(quoted, " ")
 }
 
 // --- open in browser ---
@@ -688,7 +725,7 @@ func (m model) handleSpawnAgentResult(msg spawnAgentMsg) (tea.Model, tea.Cmd) {
 
 func spawnAgentCmd(name, projectDir, tmuxTarget string) tea.Cmd {
 	return func() tea.Msg {
-		err := spawnAgentInTmux(name, projectDir, tmuxTarget, "--interactive", "--skip-permissions")
+		err := spawnAgentInTmux(name, projectDir, tmuxTarget, true, "--interactive", "--skip-permissions")
 		return spawnAgentMsg{name: name, err: err}
 	}
 }
