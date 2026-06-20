@@ -98,6 +98,7 @@ Each module ships a short `FEATURE.md` describing what it does for you, in plain
 
 - [Messaging](internal/messaging/FEATURE.md) — Slack and Telegram send/receive
 - [Message Dispatch](internal/dispatch/FEATURE.md) — route chat messages to idle agents
+- [Code Navigation](internal/codenav/FEATURE.md) — index code; def/refs/call-graph/impact for agents
 - [AI Developer Agents](internal/agent/FEATURE.md) — run Claude Code in isolated containers
 - [Claude Code Integration](internal/claude/FEATURE.md) — skills, agents, and live monitoring
 - [Activity Statistics](internal/stats/FEATURE.md) — rolling record of agent tool usage

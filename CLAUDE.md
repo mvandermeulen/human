@@ -108,6 +108,7 @@ Packages under `internal/` are grouped by the user-facing feature they provide. 
 - `internal/knowledge/` — Docs/design/analytics connectors (`internal/knowledge/notion`, `internal/knowledge/figma`, `internal/knowledge/amplitude`)
 - `internal/messaging/` — Chat integrations (`internal/messaging/slack`, `internal/messaging/telegram`)
 - `internal/proxy/`, `internal/devcontainer/` — top-level features in their own right
+- `internal/codenav/` — local code-navigation engine (SQLite index; go-to-def, refs, call graph, search), surfaced as the local `human codenav` command; vendored from the standalone octi project, so prefer minimal changes for re-sync
 - `internal/vault/` — Pluggable vault secret resolution (1Password, extensible to Vault/AWS/etc.)
 - `errors/` — Custom error handling (WithDetails)
 
