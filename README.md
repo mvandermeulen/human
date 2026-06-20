@@ -117,7 +117,7 @@ Each module ships a short `README.md` describing what it does for you, in plain 
 **Core & utilities**
 
 - [Project Configuration](internal/config/README.md) — `.humanconfig.yaml` and credentials
-- [Cross-Tracker Search](internal/index/README.md) — local full-text index over all issues
+- [Cross-Tracker Search](internal/recall/README.md) — local full-text index over all issues
 - [Git Repository](internal/gitrepo/README.md) — detect forge and project from git
 - [Tracker Connections](internal/apiclient/README.md) — shared networking for every backend
 - [Setup Wizard](internal/init/README.md) — guided `human init` onboarding

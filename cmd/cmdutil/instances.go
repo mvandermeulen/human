@@ -11,8 +11,8 @@ import (
 	"github.com/gethuman-sh/human/internal/config"
 	"github.com/gethuman-sh/human/internal/forge"
 	forgegithub "github.com/gethuman-sh/human/internal/forge/github"
-	"github.com/gethuman-sh/human/internal/index"
 	"github.com/gethuman-sh/human/internal/knowledge/notion"
+	"github.com/gethuman-sh/human/internal/recall"
 	"github.com/gethuman-sh/human/internal/tracker"
 	"github.com/gethuman-sh/human/internal/tracker/azuredevops"
 	"github.com/gethuman-sh/human/internal/tracker/clickup"
@@ -205,15 +205,15 @@ func instanceFromAzureFlags(getFlag func(string) string) *tracker.Instance {
 }
 
 // LoadNotionIndexInstances loads Notion instances and converts them
-// to index.NotionInstance for use by the indexer.
-func LoadNotionIndexInstances(dir string) ([]index.NotionInstance, error) {
+// to recall.NotionInstance for use by the indexer.
+func LoadNotionIndexInstances(dir string) ([]recall.NotionInstance, error) {
 	notionInsts, err := notion.LoadInstances(dir)
 	if err != nil {
 		return nil, err
 	}
-	var result []index.NotionInstance
+	var result []recall.NotionInstance
 	for _, ni := range notionInsts {
-		result = append(result, index.NotionInstance{
+		result = append(result, recall.NotionInstance{
 			Name:   ni.Name,
 			URL:    ni.URL,
 			Client: ni.Client,

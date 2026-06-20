@@ -9,16 +9,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gethuman-sh/human/cmd/cmdutil"
-	"github.com/gethuman-sh/human/internal/index"
+	"github.com/gethuman-sh/human/internal/recall"
 	"github.com/gethuman-sh/human/internal/tracker"
 )
 
 // IndexDeps holds injectable dependencies for index commands.
 type IndexDeps struct {
 	LoadInstances       func(dir string) ([]tracker.Instance, error)
-	LoadNotionInstances func(dir string) ([]index.NotionInstance, error)
+	LoadNotionInstances func(dir string) ([]recall.NotionInstance, error)
 	DBPath              func() string
-	NewStore            func(dbPath string) (index.Store, error)
+	NewStore            func(dbPath string) (recall.Store, error)
 }
 
 // DefaultIndexDeps returns production dependencies.
@@ -26,9 +26,9 @@ func DefaultIndexDeps() IndexDeps {
 	return IndexDeps{
 		LoadInstances:       cmdutil.LoadAllInstances,
 		LoadNotionInstances: cmdutil.LoadNotionIndexInstances,
-		DBPath:              index.DefaultDBPath,
-		NewStore: func(dbPath string) (index.Store, error) {
-			return index.NewSQLiteStore(dbPath)
+		DBPath:              recall.DefaultDBPath,
+		NewStore: func(dbPath string) (recall.Store, error) {
+			return recall.NewSQLiteStore(dbPath)
 		},
 	}
 }
@@ -72,7 +72,7 @@ func BuildSearchCmd(deps IndexDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "search QUERY",
 		Short: "Search the local issue index",
-		Long:  "Full-text search across all indexed tracker issues and Notion pages. Run 'human index' first to build the index.",
+		Long:  "Full-text search across all indexed tracker issues and Notion pages. Run 'human index' first to build the recall.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RunSearch(cmd.Context(), cmd.OutOrStdout(), args[0], limit, source, jsonOut, tableOut, deps)
@@ -121,7 +121,7 @@ func RunIndex(ctx context.Context, out io.Writer, source string, full bool, deps
 	defer func() { _ = store.Close() }()
 
 	if len(instances) > 0 {
-		result, err := index.Sync(ctx, store, instances, full, out)
+		result, err := recall.Sync(ctx, store, instances, full, out)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func RunIndex(ctx context.Context, out io.Writer, source string, full bool, deps
 }
 
 // syncNotion loads and syncs Notion instances.
-func syncNotion(ctx context.Context, out io.Writer, store index.Store, deps IndexDeps) {
+func syncNotion(ctx context.Context, out io.Writer, store recall.Store, deps IndexDeps) {
 	notionInstances, err := deps.LoadNotionInstances(".")
 	if err != nil {
 		_, _ = fmt.Fprintf(out, "Warning: failed to load Notion instances: %v\n", err)
@@ -146,7 +146,7 @@ func syncNotion(ctx context.Context, out io.Writer, store index.Store, deps Inde
 	if len(notionInstances) == 0 {
 		return
 	}
-	notionResult, err := index.SyncNotion(ctx, store, notionInstances, out)
+	notionResult, err := recall.SyncNotion(ctx, store, notionInstances, out)
 	if err != nil {
 		_, _ = fmt.Fprintf(out, "Error syncing Notion: %v\n", err)
 		return
@@ -167,7 +167,7 @@ func RunSearch(ctx context.Context, out io.Writer, query string, limit int, sour
 	// applied AFTER the kind restriction. Filtering client-side after a
 	// LIMIT can hide matching results when the top-ranked hits belong
 	// to a different kind.
-	var entries []index.Entry
+	var entries []recall.Entry
 	if source != "" {
 		entries, err = store.SearchWithKind(ctx, query, source, limit)
 	} else {
@@ -178,7 +178,7 @@ func RunSearch(ctx context.Context, out io.Writer, query string, limit int, sour
 	}
 
 	if len(entries) == 0 {
-		_, _ = fmt.Fprintln(out, "No results found. Run 'human index' to build or update the index.")
+		_, _ = fmt.Fprintln(out, "No results found. Run 'human index' to build or update the recall.")
 		return nil
 	}
 
@@ -229,7 +229,7 @@ func RunIndexStatus(ctx context.Context, out io.Writer, deps IndexDeps) error {
 }
 
 // printSearchDefault prints results in the agent-friendly default format.
-func printSearchDefault(out io.Writer, entries []index.Entry) error {
+func printSearchDefault(out io.Writer, entries []recall.Entry) error {
 	for _, e := range entries {
 		if e.Kind == "notion" {
 			_, _ = fmt.Fprintln(out, e.Title)
@@ -263,7 +263,7 @@ func printSearchDefault(out io.Writer, entries []index.Entry) error {
 }
 
 // printSearchTable prints results as a formatted table.
-func printSearchTable(out io.Writer, entries []index.Entry) error {
+func printSearchTable(out io.Writer, entries []recall.Entry) error {
 	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "KEY\tTITLE\tKIND\tSOURCE\tSTATUS\tASSIGNEE")
 	for _, e := range entries {
