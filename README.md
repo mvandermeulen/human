@@ -83,49 +83,49 @@ devcontainer up --workspace-folder .
 
 ## Module features
 
-Each module ships a short `FEATURE.md` describing what it does for you, in plain language.
+Each module ships a short `README.md` describing what it does for you, in plain language.
 
 **Issue trackers & forges**
 
-- [Issue Trackers](internal/tracker/FEATURE.md) — Jira, Linear, GitHub, GitLab, Shortcut, Azure DevOps, ClickUp
-- [Code Forges](internal/forge/FEATURE.md) — open pull requests (GitHub)
+- [Issue Trackers](internal/tracker/README.md) — Jira, Linear, GitHub, GitLab, Shortcut, Azure DevOps, ClickUp
+- [Code Forges](internal/forge/README.md) — open pull requests (GitHub)
 
 **Docs, design & analytics**
 
-- [Knowledge & Insights](internal/knowledge/FEATURE.md) — Notion docs, Figma designs, Amplitude analytics
+- [Knowledge & Insights](internal/knowledge/README.md) — Notion docs, Figma designs, Amplitude analytics
 
 **Messaging & agents**
 
-- [Messaging](internal/messaging/FEATURE.md) — Slack and Telegram send/receive
-- [Message Dispatch](internal/dispatch/FEATURE.md) — route chat messages to idle agents
-- [Code Navigation](internal/codenav/FEATURE.md) — index code; def/refs/call-graph/impact for agents
-- [AI Developer Agents](internal/agent/FEATURE.md) — run Claude Code in isolated containers
-- [Claude Code Integration](internal/claude/FEATURE.md) — skills, agents, and live monitoring
-- [Activity Statistics](internal/stats/FEATURE.md) — rolling record of agent tool usage
+- [Messaging](internal/messaging/README.md) — Slack and Telegram send/receive
+- [Message Dispatch](internal/dispatch/README.md) — route chat messages to idle agents
+- [Code Navigation](internal/codenav/README.md) — index code; def/refs/call-graph/impact for agents
+- [AI Developer Agents](internal/agent/README.md) — run Claude Code in isolated containers
+- [Claude Code Integration](internal/claude/README.md) — skills, agents, and live monitoring
+- [Activity Statistics](internal/stats/README.md) — rolling record of agent tool usage
 
 **Infrastructure & security**
 
-- [Background Daemon](internal/daemon/FEATURE.md) — holds credentials, answers commands fast
-- [Dev Containers](internal/devcontainer/FEATURE.md) — reproducible sandbox for agents
-- [HTTPS Proxy](internal/proxy/FEATURE.md) — filter outbound agent traffic by domain
-- [Chrome Bridge](internal/chrome/FEATURE.md) — drive host Chrome from a container
-- [OAuth Sign-In](internal/oauth/FEATURE.md) — handle localhost OAuth callbacks
-- [Browser Opener](internal/browser/FEATURE.md) — open links in your default browser
-- [Secret-Redacting Filesystem](internal/fusefs/FEATURE.md) — hide secrets from agents
-- [Secret Vault](internal/vault/FEATURE.md) — resolve `1pw://` references at startup
+- [Background Daemon](internal/daemon/README.md) — holds credentials, answers commands fast
+- [Dev Containers](internal/devcontainer/README.md) — reproducible sandbox for agents
+- [HTTPS Proxy](internal/proxy/README.md) — filter outbound agent traffic by domain
+- [Chrome Bridge](internal/chrome/README.md) — drive host Chrome from a container
+- [OAuth Sign-In](internal/oauth/README.md) — handle localhost OAuth callbacks
+- [Browser Opener](internal/browser/README.md) — open links in your default browser
+- [Secret-Redacting Filesystem](internal/fusefs/README.md) — hide secrets from agents
+- [Secret Vault](internal/vault/README.md) — resolve `1pw://` references at startup
 
 **Core & utilities**
 
-- [Project Configuration](internal/config/FEATURE.md) — `.humanconfig.yaml` and credentials
-- [Cross-Tracker Search](internal/index/FEATURE.md) — local full-text index over all issues
-- [Git Repository](internal/gitrepo/FEATURE.md) — detect forge and project from git
-- [Tracker Connections](internal/apiclient/FEATURE.md) — shared networking for every backend
-- [Setup Wizard](internal/init/FEATURE.md) — guided `human init` onboarding
-- [Update Notifications](internal/update/FEATURE.md) — background new-release checks
-- [Per-Request Settings](internal/env/FEATURE.md) — isolated settings per daemon request
-- [Command Flags](internal/cliflags/FEATURE.md) — consistent CLI option parsing
-- [Platform Detection](internal/platform/FEATURE.md) — adapt behavior per operating system
-- [CLI Banner](internal/logo/FEATURE.md) — the gradient `human` startup banner
+- [Project Configuration](internal/config/README.md) — `.humanconfig.yaml` and credentials
+- [Cross-Tracker Search](internal/index/README.md) — local full-text index over all issues
+- [Git Repository](internal/gitrepo/README.md) — detect forge and project from git
+- [Tracker Connections](internal/apiclient/README.md) — shared networking for every backend
+- [Setup Wizard](internal/init/README.md) — guided `human init` onboarding
+- [Update Notifications](internal/update/README.md) — background new-release checks
+- [Per-Request Settings](internal/env/README.md) — isolated settings per daemon request
+- [Command Flags](internal/cliflags/README.md) — consistent CLI option parsing
+- [Platform Detection](internal/platform/README.md) — adapt behavior per operating system
+- [CLI Banner](internal/logo/README.md) — the gradient `human` startup banner
 
 ## Dashboard
 

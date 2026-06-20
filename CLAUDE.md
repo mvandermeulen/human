@@ -100,7 +100,7 @@ The env var naming convention is `<TRACKER>_<CONFIG_NAME>_TOKEN` (or `_KEY` for 
 
 # Project Structure
 
-Packages under `internal/` are grouped by the user-facing feature they provide. Each **feature** carries one high-level `FEATURE.md` (a short intro plus a capability list) — at the group root for grouped providers (`internal/tracker/FEATURE.md` covers all trackers, `internal/knowledge/FEATURE.md`, `internal/messaging/FEATURE.md`, `internal/forge/FEATURE.md`), and at the package for standalone features (`internal/proxy`, `internal/daemon`, …). The top `README.md` links them all under "Module features". Do not add per-provider `FEATURE.md` files under a grouped feature; fold the capability into the group's `FEATURE.md`.
+Packages under `internal/` are grouped by the user-facing feature they provide. Each **feature** carries one high-level `README.md` (a short intro plus a capability list) — at the group root for grouped providers (`internal/tracker/README.md` covers all trackers, `internal/knowledge/README.md`, `internal/messaging/README.md`, `internal/forge/README.md`), and at the package for standalone features (`internal/proxy`, `internal/daemon`, …). The top `README.md` links them all under "Module features". Do not add per-provider `README.md` files under a grouped feature; fold the capability into the group's `README.md`.
 
 - `main.go` — CLI entry point
 - `internal/tracker/` — Provider-agnostic issue tracker interfaces (Lister, Getter, Creator, etc.) plus one subpackage per tracker provider (`internal/tracker/jira`, `internal/tracker/linear`, `internal/tracker/github`, `internal/tracker/gitlab`, `internal/tracker/shortcut`, `internal/tracker/azuredevops`, `internal/tracker/clickup`)
