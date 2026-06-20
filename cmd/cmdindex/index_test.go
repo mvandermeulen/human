@@ -9,15 +9,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gethuman-sh/human/internal/index"
 	"github.com/gethuman-sh/human/internal/knowledge/notion"
+	"github.com/gethuman-sh/human/internal/recall"
 	"github.com/gethuman-sh/human/internal/tracker"
 )
 
 // testDeps returns IndexDeps with an in-memory store.
-func testDeps(t *testing.T) (IndexDeps, *index.SQLiteStore) {
+func testDeps(t *testing.T) (IndexDeps, *recall.SQLiteStore) {
 	t.Helper()
-	store, err := index.NewSQLiteStore(":memory:")
+	store, err := recall.NewSQLiteStore(":memory:")
 	if err != nil {
 		t.Fatalf("NewSQLiteStore: %v", err)
 	}
@@ -27,25 +27,25 @@ func testDeps(t *testing.T) (IndexDeps, *index.SQLiteStore) {
 		LoadInstances: func(_ string) ([]tracker.Instance, error) {
 			return nil, nil
 		},
-		LoadNotionInstances: func(_ string) ([]index.NotionInstance, error) {
+		LoadNotionInstances: func(_ string) ([]recall.NotionInstance, error) {
 			return nil, nil
 		},
 		DBPath: func() string { return ":memory:" },
-		NewStore: func(_ string) (index.Store, error) {
+		NewStore: func(_ string) (recall.Store, error) {
 			return store, nil
 		},
 	}
 	return deps, store
 }
 
-func seedStore(t *testing.T, store *index.SQLiteStore) {
+func seedStore(t *testing.T, store *recall.SQLiteStore) {
 	t.Helper()
 	ctx := context.Background()
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "KAN-42", Source: "work", Kind: "jira", Project: "KAN",
 		Title: "Implement retry logic", Status: "In Progress", Assignee: "alice",
 	}, "webhook delivery retry mechanism"))
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "ENG-7", Source: "eng", Kind: "linear", Project: "ENG",
 		Title: "Fix login page", Status: "Open", Assignee: "bob",
 	}, "OAuth2 login flow broken on mobile"))
@@ -80,7 +80,7 @@ func TestRunSearch_jsonOutput(t *testing.T) {
 		t.Fatalf("RunSearch: %v", err)
 	}
 
-	var entries []index.Entry
+	var entries []recall.Entry
 	if err := json.Unmarshal(buf.Bytes(), &entries); err != nil {
 		t.Fatalf("invalid JSON: %v\noutput: %s", err, buf.String())
 	}
@@ -205,7 +205,7 @@ func TestRunIndexStatus_showsStats(t *testing.T) {
 
 // --- Notion integration tests ---
 
-// mockNotionClient implements index.NotionClient for testing.
+// mockNotionClient implements recall.NotionClient for testing.
 type mockNotionClient struct {
 	searchFn        func(ctx context.Context, query string) ([]notion.SearchResult, error)
 	getPageFn       func(ctx context.Context, pageID string) (string, error)
@@ -243,8 +243,8 @@ func TestRunIndex_syncsNotionInstances(t *testing.T) {
 		},
 	}
 
-	deps.LoadNotionInstances = func(_ string) ([]index.NotionInstance, error) {
-		return []index.NotionInstance{
+	deps.LoadNotionInstances = func(_ string) ([]recall.NotionInstance, error) {
+		return []recall.NotionInstance{
 			{Name: "workspace", URL: "https://api.notion.com", Client: client},
 		}, nil
 	}
@@ -275,8 +275,8 @@ func TestRunIndex_filtersNotionSource(t *testing.T) {
 		},
 	}
 
-	deps.LoadNotionInstances = func(_ string) ([]index.NotionInstance, error) {
-		return []index.NotionInstance{
+	deps.LoadNotionInstances = func(_ string) ([]recall.NotionInstance, error) {
+		return []recall.NotionInstance{
 			{Name: "workspace", URL: "https://api.notion.com", Client: client},
 		}, nil
 	}
@@ -308,7 +308,7 @@ func TestRunIndex_filtersNotionSource(t *testing.T) {
 func TestRunIndex_skipsNotionForOtherSource(t *testing.T) {
 	deps, _ := testDeps(t)
 
-	deps.LoadNotionInstances = func(_ string) ([]index.NotionInstance, error) {
+	deps.LoadNotionInstances = func(_ string) ([]recall.NotionInstance, error) {
 		t.Fatal("LoadNotionInstances should not be called when source=jira")
 		return nil, nil
 	}
@@ -338,7 +338,7 @@ func TestRunIndex_skipsNotionForOtherSource(t *testing.T) {
 func TestRunSearch_notionPageOutput(t *testing.T) {
 	deps, store := testDeps(t)
 	ctx := context.Background()
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "abc123", Source: "workspace", Kind: "notion", Project: "workspace",
 		Title: "Auth Spec", Status: "page",
 	}, "authentication specification content"))
@@ -361,7 +361,7 @@ func TestRunSearch_notionPageOutput(t *testing.T) {
 func TestRunSearch_notionDatabaseOutput(t *testing.T) {
 	deps, store := testDeps(t)
 	ctx := context.Background()
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "db456", Source: "workspace", Kind: "notion", Project: "workspace",
 		Title: "Q1 Roadmap", Status: "database",
 	}, "Name: Auth | Status: Done"))
@@ -384,11 +384,11 @@ func TestRunSearch_notionDatabaseOutput(t *testing.T) {
 func TestRunSearch_sourceFilter(t *testing.T) {
 	deps, store := testDeps(t)
 	ctx := context.Background()
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "KAN-1", Source: "work", Kind: "jira", Project: "KAN",
 		Title: "Jira issue about auth", Status: "Open",
 	}, "auth flow"))
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "page-1", Source: "workspace", Kind: "notion", Project: "workspace",
 		Title: "Notion auth spec", Status: "page",
 	}, "auth specification"))
@@ -411,11 +411,11 @@ func TestRunSearch_sourceFilter(t *testing.T) {
 func TestRunSearch_mixedResults(t *testing.T) {
 	deps, store := testDeps(t)
 	ctx := context.Background()
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "KAN-1", Source: "work", Kind: "jira", Project: "KAN",
 		Title: "Jira auth issue", Status: "Open",
 	}, "auth"))
-	require.NoError(t, store.UpsertEntry(ctx, index.Entry{
+	require.NoError(t, store.UpsertEntry(ctx, recall.Entry{
 		Key: "page-1", Source: "workspace", Kind: "notion", Project: "workspace",
 		Title: "Notion auth spec", Status: "page",
 	}, "auth specification"))
