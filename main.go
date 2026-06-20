@@ -19,6 +19,7 @@ import (
 	"github.com/gethuman-sh/human/cmd/cmdauto"
 	"github.com/gethuman-sh/human/cmd/cmdbrowser"
 	"github.com/gethuman-sh/human/cmd/cmdclickup"
+	"github.com/gethuman-sh/human/cmd/cmdcodenav"
 	"github.com/gethuman-sh/human/cmd/cmddaemon"
 	"github.com/gethuman-sh/human/cmd/cmdfigma"
 	"github.com/gethuman-sh/human/cmd/cmdindex"
@@ -297,6 +298,10 @@ Configure trackers and tools in .humanconfig.yaml or pass credentials via flags/
 	proxyCmd.GroupID = "utility"
 	rootCmd.AddCommand(proxyCmd)
 
+	codenavCmd := cmdcodenav.BuildCodenavCmd()
+	codenavCmd.GroupID = "utility"
+	rootCmd.AddCommand(codenavCmd)
+
 	// hook reads Claude Code hook JSON from stdin, extracts event fields,
 	// and forwards them to the daemon as hook-event args. Runs locally
 	// (listed in isLocalSubcommand) so stdin is available.
@@ -405,6 +410,7 @@ var localSubcommands = map[string]bool{
 	"init":          true,
 	"usage":         true,
 	"index":         true,
+	"codenav":       true,
 	"tui":           true,
 	"ping":          true,
 	"proxy":         true,

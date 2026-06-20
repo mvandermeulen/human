@@ -100,13 +100,19 @@ The env var naming convention is `<TRACKER>_<CONFIG_NAME>_TOKEN` (or `_KEY` for 
 
 # Project Structure
 
+Packages under `internal/` are grouped by the user-facing feature they provide. Each **feature** carries one high-level `README.md` (a short intro plus a capability list) — at the group root for grouped providers (`internal/tracker/README.md` covers all trackers, `internal/knowledge/README.md`, `internal/messaging/README.md`, `internal/forge/README.md`), and at the package for standalone features (`internal/proxy`, `internal/daemon`, …). The top `README.md` links them all under "Module features". Do not add per-provider `README.md` files under a grouped feature; fold the capability into the group's `README.md`.
+
 - `main.go` — CLI entry point
-- `internal/tracker/` — Provider-agnostic issue tracker interfaces (Lister, Getter, Creator, etc.)
+- `internal/tracker/` — Provider-agnostic issue tracker interfaces (Lister, Getter, Creator, etc.) plus one subpackage per tracker provider (`internal/tracker/jira`, `internal/tracker/linear`, `internal/tracker/github`, `internal/tracker/gitlab`, `internal/tracker/shortcut`, `internal/tracker/azuredevops`, `internal/tracker/clickup`)
+- `internal/forge/` — Provider-agnostic code-host (pull request) interfaces plus one subpackage per forge provider (`internal/forge/github`)
+- `internal/knowledge/` — Docs/design/analytics connectors (`internal/knowledge/notion`, `internal/knowledge/figma`, `internal/knowledge/amplitude`)
+- `internal/messaging/` — Chat integrations (`internal/messaging/slack`, `internal/messaging/telegram`)
+- `internal/proxy/`, `internal/devcontainer/` — top-level features in their own right
+- `internal/codenav/` — local code-navigation engine (SQLite index; go-to-def, refs, call graph, search), surfaced as the local `human codenav` command; vendored from the standalone octi project, so prefer minimal changes for re-sync
 - `internal/vault/` — Pluggable vault secret resolution (1Password, extensible to Vault/AWS/etc.)
-- `internal/jira/` — Jira API client and types
 - `errors/` — Custom error handling (WithDetails)
 
-internal/tracker/ is an abstraction layer for issue trackers. **ALWAYS** define new tracker operations as interfaces in `internal/tracker/`. **NEVER** add provider-specific types or logic to `internal/tracker/`. Concrete implementations (JIRA, Linear, Github, etc.) go under `internal/<provider>/` and **MUST** implement the `internal/tracker/` interfaces.
+internal/tracker/ is an abstraction layer for issue trackers. **ALWAYS** define new tracker operations as interfaces in `internal/tracker/`. **NEVER** add provider-specific types or logic to `internal/tracker/`. Concrete tracker implementations (Jira, Linear, GitHub, …) go under `internal/tracker/<provider>/` and **MUST** implement the `internal/tracker/` interfaces. Code-host (pull request) operations are a separate abstraction in `internal/forge/`, with implementations under `internal/forge/<provider>/`. A backend that is both a tracker and a forge (e.g. GitHub) is split into two packages — `internal/tracker/github` and `internal/forge/github` — rather than one package implementing both; the forge capability is surfaced via the optional `Forge` field on `tracker.Instance`.
 
 # Tools
 

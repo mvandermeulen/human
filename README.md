@@ -81,6 +81,52 @@ devcontainer up --workspace-folder .
 | Dashboard | TUI with agent monitoring, token usage, tracker issues, pipeline state |
 | Search | Cross-tracker and Notion full-text index |
 
+## Module features
+
+Each module ships a short `README.md` describing what it does for you, in plain language.
+
+**Issue trackers & forges**
+
+- [Issue Trackers](internal/tracker/README.md) — Jira, Linear, GitHub, GitLab, Shortcut, Azure DevOps, ClickUp
+- [Code Forges](internal/forge/README.md) — open pull requests (GitHub)
+
+**Docs, design & analytics**
+
+- [Knowledge & Insights](internal/knowledge/README.md) — Notion docs, Figma designs, Amplitude analytics
+
+**Messaging & agents**
+
+- [Messaging](internal/messaging/README.md) — Slack and Telegram send/receive
+- [Message Dispatch](internal/dispatch/README.md) — route chat messages to idle agents
+- [Code Navigation](internal/codenav/README.md) — index code; def/refs/call-graph/impact for agents
+- [AI Developer Agents](internal/agent/README.md) — run Claude Code in isolated containers
+- [Claude Code Integration](internal/claude/README.md) — skills, agents, and live monitoring
+- [Activity Statistics](internal/stats/README.md) — rolling record of agent tool usage
+
+**Infrastructure & security**
+
+- [Background Daemon](internal/daemon/README.md) — holds credentials, answers commands fast
+- [Dev Containers](internal/devcontainer/README.md) — reproducible sandbox for agents
+- [HTTPS Proxy](internal/proxy/README.md) — filter outbound agent traffic by domain
+- [Chrome Bridge](internal/chrome/README.md) — drive host Chrome from a container
+- [OAuth Sign-In](internal/oauth/README.md) — handle localhost OAuth callbacks
+- [Browser Opener](internal/browser/README.md) — open links in your default browser
+- [Secret-Redacting Filesystem](internal/fusefs/README.md) — hide secrets from agents
+- [Secret Vault](internal/vault/README.md) — resolve `1pw://` references at startup
+
+**Core & utilities**
+
+- [Project Configuration](internal/config/README.md) — `.humanconfig.yaml` and credentials
+- [Cross-Tracker Search](internal/index/README.md) — local full-text index over all issues
+- [Git Repository](internal/gitrepo/README.md) — detect forge and project from git
+- [Tracker Connections](internal/apiclient/README.md) — shared networking for every backend
+- [Setup Wizard](internal/init/README.md) — guided `human init` onboarding
+- [Update Notifications](internal/update/README.md) — background new-release checks
+- [Per-Request Settings](internal/env/README.md) — isolated settings per daemon request
+- [Command Flags](internal/cliflags/README.md) — consistent CLI option parsing
+- [Platform Detection](internal/platform/README.md) — adapt behavior per operating system
+- [CLI Banner](internal/logo/README.md) — the gradient `human` startup banner
+
 ## Dashboard
 
 ```bash
@@ -229,7 +275,7 @@ This writes skill and agent files to `.claude/` in the current directory. Re-run
 | `/human-brainstorm` | Explores the codebase and generates 2-3 implementation approaches |
 | `/human-plan` | Fetches a ticket and produces a structured implementation plan |
 | `/human-bug-plan` | Analyzes a bug ticket for root cause and writes a fix plan |
-| `/human-autofix` | Autonomously verifies, reproduces, fixes, and opens a PR for a bug end to end — the whole trail recorded on the tracker |
+| `/human-autofix` | Autonomously triages, fixes, verifies, and opens a PR for a bug end to end — the whole trail recorded on the tracker |
 | `/human-execute` | Loads a plan, executes step by step, runs a review checkpoint |
 | `/human-review` | Diffs the current branch against acceptance criteria |
 | `/human-findbugs` | Multi-agent pipeline to find logic errors, race conditions, and security issues |
@@ -248,6 +294,26 @@ This writes skill and agent files to `.claude/` in the current directory. Re-run
 ```
 
 All outputs are saved to `.human/` (plans, reviews, done reports, bug analyses, security audits, health reports).
+
+### Autonomous bug fixing
+
+`/human-autofix` runs the full bug-fix pipeline autonomously — pointed at a bug ticket, it never asks the user a question:
+
+```bash
+/human-autofix SC-86               # triage, fix, verify, and open a PR for a bug
+```
+
+It moves through six phases: triage and reproduce the bug, gate on the verdict, plan a regression-test-first fix and create a linked engineering ticket, write the failing regression test then fix the root cause and push, verify the fix is "done done", and finally open a PR and hand off.
+
+Triage returns one of three verdicts, posted as a `[human:bug-verdict]` comment on the ticket:
+
+- **`confirmed`** — the bug is reproduced; the pipeline proceeds to fix it.
+- **`not-a-bug`** — the ticket is closed or reclassified, with no code changes.
+- **`undetermined`** — the ticket is left open, with no code changes.
+
+Only a `confirmed` bug that passes the verification gate (regression test fails before the fix, passes after, and the full suite is green) gets a PR. The fix lands on an `autofix/<eng-key>` branch with commits referencing both the PM and engineering keys, then `human pr create` opens the PR (forge and repo derived from the git origin remote). A `[human:ready-for-review]` handoff comment is posted on the PM ticket carrying the `engineering:`, `branch:`, `commits:`, and `pr:` lines, and the TUI's `(R)` marker links straight to the PR.
+
+The whole trail lives on the trackers — bug comment, engineering ticket, and PR — so no `.human/` working files are produced. If the build or tests aren't green, or `human pr create` fails, the pipeline stops and reports honestly rather than claiming success.
 
 ## Configuration
 
