@@ -87,27 +87,16 @@ Each module ships a short `FEATURE.md` describing what it does for you, in plain
 
 **Issue trackers & forges**
 
-- [Cross-Tracker Operations](internal/tracker/FEATURE.md) — one set of commands for every tracker
-- [Jira Tracker](internal/tracker/jira/FEATURE.md) — work with Jira issues
-- [Linear Tracker](internal/tracker/linear/FEATURE.md) — plan and track Linear tickets
-- [GitHub Tracker](internal/tracker/github/FEATURE.md) — work with GitHub issues
-- [GitLab](internal/tracker/gitlab/FEATURE.md) — read and manage GitLab issues
-- [Shortcut Tracker](internal/tracker/shortcut/FEATURE.md) — work with Shortcut stories
-- [Azure DevOps Tracker](internal/tracker/azuredevops/FEATURE.md) — track Azure DevOps work items
-- [ClickUp Tracker](internal/tracker/clickup/FEATURE.md) — manage ClickUp tasks
-- [Pull Requests](internal/forge/FEATURE.md) — open PRs on code-hosting platforms
-- [GitHub Forge](internal/forge/github/FEATURE.md) — open GitHub pull requests
+- [Issue Trackers](internal/tracker/FEATURE.md) — Jira, Linear, GitHub, GitLab, Shortcut, Azure DevOps, ClickUp
+- [Code Forges](internal/forge/FEATURE.md) — open pull requests (GitHub)
 
 **Docs, design & analytics**
 
-- [Notion Knowledge Base](internal/knowledge/notion/FEATURE.md) — read Notion pages and databases
-- [Figma Designs](internal/knowledge/figma/FEATURE.md) — inspect files, components, and exports
-- [Amplitude Analytics](internal/knowledge/amplitude/FEATURE.md) — events, funnels, retention, users
+- [Knowledge & Insights](internal/knowledge/FEATURE.md) — Notion docs, Figma designs, Amplitude analytics
 
 **Messaging & agents**
 
-- [Slack Messaging](internal/messaging/slack/FEATURE.md) — post and read channel messages
-- [Telegram Inbox](internal/messaging/telegram/FEATURE.md) — receive tasks over a Telegram bot
+- [Messaging](internal/messaging/FEATURE.md) — Slack and Telegram send/receive
 - [Message Dispatch](internal/dispatch/FEATURE.md) — route chat messages to idle agents
 - [AI Developer Agents](internal/agent/FEATURE.md) — run Claude Code in isolated containers
 - [Claude Code Integration](internal/claude/FEATURE.md) — skills, agents, and live monitoring
