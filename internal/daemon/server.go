@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
+	"github.com/gethuman-sh/human/internal/audit"
 	"github.com/gethuman-sh/human/internal/browser"
 	"github.com/gethuman-sh/human/internal/claude/hookevents"
 	"github.com/gethuman-sh/human/internal/cliflags"
@@ -52,6 +54,8 @@ type Server struct {
 	PendingConfirms  *PendingConfirmStore                     // pending destructive operation confirmations; nil disables
 	StatsWriter      *stats.Writer                            // async SQLite writer for tool event persistence; nil disables
 	StatsStore       *stats.StatsStore                        // for query-time aggregation; nil disables tool-stats route
+	AuditSink        *audit.Writer                            // records mutating tracker actions for the audit trail; nil disables
+	AuditStore       *audit.Store                             // serves audit-query reads; nil disables audit-query route
 	AgentCleaner     AgentCleaner                             // async agent cleanup; nil disables agent-stop-async route
 	VaultResolver    *vault.Resolver                          // session-scoped vault resolver; reused across requests to avoid repeated op.exe calls
 
@@ -213,6 +217,14 @@ func (s *Server) executeCommand(conn net.Conn, req Request, projectDir string) {
 		exitCode = 1
 	}
 
+	// Emit the audit event after execution so the outcome (and the per-request
+	// HUMAN_AUDIT_* decision context on ctx) is known.
+	outcome := audit.OutcomeSuccess
+	if exitCode != 0 {
+		outcome = audit.OutcomeFailure
+	}
+	s.emitAudit(req.Args, outcome, func(k string) string { return env.Lookup(ctx, k) })
+
 	resp := Response{
 		Stdout:   stdoutBuf.String(),
 		Stderr:   stderrBuf.String(),
@@ -223,6 +235,26 @@ func (s *Server) executeCommand(conn net.Conn, req Request, projectDir string) {
 	if err := enc.Encode(resp); err != nil {
 		s.Logger.Warn().Err(err).Msg("failed to write response")
 	}
+}
+
+// emitAudit records a mutating command's outcome. It is a no-op when the
+// command is not mutating or no sink is configured. lookup resolves the
+// per-request HUMAN_AUDIT_* decision context.
+func (s *Server) emitAudit(args []string, outcome audit.Outcome, lookup func(string) string) {
+	if s.AuditSink == nil {
+		return
+	}
+	op, ok := audit.DetectMutating(args)
+	if !ok {
+		return
+	}
+	dc := audit.DecisionFromEnv(lookup)
+	e, err := audit.BuildEvent(time.Now().UTC(), op, outcome, dc, args)
+	if err != nil {
+		s.Logger.Warn().Err(err).Msg("audit event build failed")
+		return
+	}
+	s.AuditSink.Send(e)
 }
 
 // handleLogMode handles get/set of the traffic log mode in-memory.
@@ -286,6 +318,9 @@ func (s *Server) routeIntercept(conn net.Conn, reader *bufio.Reader, args []stri
 		return true
 	case "tool-stats":
 		s.handleToolStats(conn)
+		return true
+	case "audit-query":
+		s.handleAuditQuery(conn, args[1:])
 		return true
 	case "agent-stop-async":
 		s.handleAgentStopAsync(conn, args[1:])
@@ -429,6 +464,103 @@ func (s *Server) handleToolStats(conn net.Conn) {
 	resp := Response{Stdout: out}
 	enc := json.NewEncoder(conn)
 	_ = enc.Encode(resp)
+}
+
+// handleAuditQuery serves "human audit list/show" reads through the daemon,
+// which owns the audit DB. An unset store returns an empty array so a missing
+// feature looks like an empty result to the client, matching tool-stats.
+func (s *Server) handleAuditQuery(conn net.Conn, args []string) {
+	if s.AuditStore == nil {
+		resp := Response{Stdout: "[]\n"}
+		enc := json.NewEncoder(conn)
+		_ = enc.Encode(resp)
+		return
+	}
+
+	f := parseAuditFilter(args)
+	events, err := s.AuditStore.Query(context.Background(), f)
+	if err != nil {
+		s.writeError(conn, err.Error(), 1)
+		return
+	}
+	data, err := json.Marshal(events)
+	if err != nil {
+		s.writeError(conn, err.Error(), 1)
+		return
+	}
+	resp := Response{Stdout: string(data) + "\n"}
+	enc := json.NewEncoder(conn)
+	_ = enc.Encode(resp)
+}
+
+// parseAuditFilter builds an audit.Filter from pre-parsed flag args. The args
+// arrive as a plain slice (no cobra), so it is self-contained and recognises
+// --since/--until (RFC3339), --subject, --tracker, and --limit. Default window
+// is the last 7 days up to now.
+func parseAuditFilter(args []string) audit.Filter {
+	now := time.Now().UTC()
+	f := audit.Filter{
+		Since: now.Add(-7 * 24 * time.Hour),
+		Until: now,
+	}
+
+	valueOf := func(i int, raw, name string) (string, bool) {
+		if v, ok := strings.CutPrefix(raw, name+"="); ok {
+			return v, true
+		}
+		if raw == name && i+1 < len(args) {
+			return args[i+1], true
+		}
+		return "", false
+	}
+
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case strings.HasPrefix(a, "--since"):
+			if v, ok := valueOf(i, a, "--since"); ok {
+				if t, err := time.Parse(time.RFC3339, v); err == nil {
+					f.Since = t.UTC()
+				}
+				if a == "--since" {
+					i++
+				}
+			}
+		case strings.HasPrefix(a, "--until"):
+			if v, ok := valueOf(i, a, "--until"); ok {
+				if t, err := time.Parse(time.RFC3339, v); err == nil {
+					f.Until = t.UTC()
+				}
+				if a == "--until" {
+					i++
+				}
+			}
+		case strings.HasPrefix(a, "--subject"):
+			if v, ok := valueOf(i, a, "--subject"); ok {
+				f.Subject = v
+				if a == "--subject" {
+					i++
+				}
+			}
+		case strings.HasPrefix(a, "--tracker"):
+			if v, ok := valueOf(i, a, "--tracker"); ok {
+				f.TrackerKind = v
+				if a == "--tracker" {
+					i++
+				}
+			}
+		case strings.HasPrefix(a, "--limit"):
+			if v, ok := valueOf(i, a, "--limit"); ok {
+				if n, err := strconv.Atoi(v); err == nil {
+					f.Limit = n
+				}
+				if a == "--limit" {
+					i++
+				}
+			}
+		}
+	}
+	return f
 }
 
 // handleAgentStopAsync removes the agent from the list immediately and
@@ -665,6 +797,14 @@ func (s *Server) handleDestructiveConfirm(conn net.Conn, req Request, op destruc
 	}
 
 	if !approved {
+		// Denial/timeout: no command ctx exists, so resolve the decision
+		// context straight from the request env (falling back to the process).
+		s.emitAudit(req.Args, audit.OutcomeDenied, func(k string) string {
+			if v, ok := req.Env[k]; ok {
+				return v
+			}
+			return os.Getenv(k)
+		})
 		resp2 := Response{Stderr: "Operation aborted\n", ExitCode: 1}
 		_ = enc.Encode(resp2)
 		return
@@ -703,6 +843,14 @@ func (s *Server) handleDestructiveConfirm(conn net.Conn, req Request, op destruc
 	if err := cmd.Execute(); err != nil {
 		exitCode = 1
 	}
+
+	// Approved-and-executed: record the outcome like the normal path, using the
+	// command ctx so the per-request HUMAN_AUDIT_* decision context resolves.
+	outcome := audit.OutcomeSuccess
+	if exitCode != 0 {
+		outcome = audit.OutcomeFailure
+	}
+	s.emitAudit(req.Args, outcome, func(k string) string { return env.Lookup(ctx, k) })
 
 	resp2 := Response{
 		Stdout:   stdoutBuf.String(),

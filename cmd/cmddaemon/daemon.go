@@ -21,6 +21,7 @@ import (
 
 	"github.com/gethuman-sh/human/cmd/cmdutil"
 	"github.com/gethuman-sh/human/internal/agent"
+	"github.com/gethuman-sh/human/internal/audit"
 	"github.com/gethuman-sh/human/internal/chrome"
 	"github.com/gethuman-sh/human/internal/claude"
 	"github.com/gethuman-sh/human/internal/config"
@@ -99,6 +100,8 @@ type daemonState struct {
 	vaultResolver *vault.Resolver
 	statsStore    *stats.StatsStore
 	statsWriter   *stats.Writer
+	auditStore    *audit.Store
+	auditWriter   *audit.Writer
 }
 
 // initDaemon performs the early initialization steps for the daemon: token,
@@ -165,6 +168,22 @@ func initDaemon(cmd *cobra.Command, addr, chromeAddr, proxyAddr string, safe, de
 		statsWriter = stats.NewWriter(ctx, statsStore, logger)
 	}
 
+	auditStore, err := audit.NewStore(audit.DefaultDBPath())
+	if err != nil {
+		logger.Warn().Err(err).Msg("failed to open audit database, audit trail disabled")
+		auditStore = nil
+	}
+
+	var auditWriter *audit.Writer
+	if auditStore != nil {
+		if deleted, pruneErr := auditStore.Prune(ctx); pruneErr != nil {
+			logger.Warn().Err(pruneErr).Msg("audit prune on startup failed")
+		} else if deleted > 0 {
+			logger.Info().Int64("deleted", deleted).Msg("pruned old audit events")
+		}
+		auditWriter = audit.NewWriter(ctx, auditStore, logger)
+	}
+
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -177,6 +196,11 @@ func initDaemon(cmd *cobra.Command, addr, chromeAddr, proxyAddr string, safe, de
 				if statsStore != nil {
 					if _, pruneErr := statsStore.Prune(ctx); pruneErr != nil {
 						logger.Warn().Err(pruneErr).Msg("periodic stats prune failed")
+					}
+				}
+				if auditStore != nil {
+					if _, pruneErr := auditStore.Prune(ctx); pruneErr != nil {
+						logger.Warn().Err(pruneErr).Msg("periodic audit prune failed")
 					}
 				}
 			}
@@ -198,6 +222,8 @@ func initDaemon(cmd *cobra.Command, addr, chromeAddr, proxyAddr string, safe, de
 		PendingConfirms:  confirmStore,
 		StatsWriter:      statsWriter,
 		StatsStore:       statsStore,
+		AuditSink:        auditWriter,
+		AuditStore:       auditStore,
 		AgentCleaner:     &dockerAgentCleaner{},
 		VaultResolver:    vaultResolver,
 	}
@@ -212,6 +238,8 @@ func initDaemon(cmd *cobra.Command, addr, chromeAddr, proxyAddr string, safe, de
 		vaultResolver: vaultResolver,
 		statsStore:    statsStore,
 		statsWriter:   statsWriter,
+		auditStore:    auditStore,
+		auditWriter:   auditWriter,
 	}, nil
 }
 
@@ -230,6 +258,12 @@ func runDaemonForeground(cmd *cobra.Command, addr, chromeAddr, proxyAddr string,
 	}
 	if ds.statsStore != nil {
 		defer func() { _ = ds.statsStore.Close() }()
+	}
+	if ds.auditWriter != nil {
+		defer ds.auditWriter.Close()
+	}
+	if ds.auditStore != nil {
+		defer func() { _ = ds.auditStore.Close() }()
 	}
 
 	out := cmd.OutOrStdout()
