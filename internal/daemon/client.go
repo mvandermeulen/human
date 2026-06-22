@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gethuman-sh/human/errors"
+	"github.com/gethuman-sh/human/internal/audit"
 	"github.com/gethuman-sh/human/internal/claude/hookevents"
 	"github.com/gethuman-sh/human/internal/stats"
 	"github.com/gethuman-sh/human/internal/tracker"
@@ -160,6 +161,21 @@ func RunRemoteCapture(addr, token string, args []string) ([]byte, error) {
 	}
 
 	return []byte(resp.Stdout), nil
+}
+
+// QueryAudit reads audit events from the daemon (which owns the audit DB),
+// forwarding the pre-parsed filter flags. filterArgs is the slice of
+// --since/--until/--subject/--tracker/--limit tokens.
+func QueryAudit(addr, token string, filterArgs []string) ([]audit.Event, error) {
+	out, err := RunRemoteCapture(addr, token, append([]string{"audit-query"}, filterArgs...))
+	if err != nil {
+		return nil, err
+	}
+	var events []audit.Event
+	if err := json.Unmarshal(out, &events); err != nil {
+		return nil, errors.WrapWithDetails(err, "invalid audit events JSON")
+	}
+	return events, nil
 }
 
 // GetLogMode fetches the current traffic log mode from the daemon.
@@ -373,7 +389,13 @@ func findAncestorClaude() int {
 
 // selectedEnv returns a small set of display-related env vars to forward.
 func selectedEnv() map[string]string {
-	keys := []string{"NO_COLOR", "TERM", "COLUMNS"}
+	keys := []string{
+		"NO_COLOR", "TERM", "COLUMNS",
+		// Forward the at-decision-time audit context so the daemon can record
+		// the agent's model and rationale alongside the action it mediates.
+		"HUMAN_AUDIT_MODEL_ID", "HUMAN_AUDIT_MODEL_VERSION",
+		"HUMAN_AUDIT_INPUTS", "HUMAN_AUDIT_RATIONALE",
+	}
 	env := make(map[string]string)
 	for _, k := range keys {
 		if v, ok := os.LookupEnv(k); ok {

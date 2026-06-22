@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
+	"github.com/gethuman-sh/human/internal/audit"
 	"github.com/gethuman-sh/human/internal/browser"
 	"github.com/gethuman-sh/human/internal/claude/hookevents"
 	"github.com/gethuman-sh/human/internal/cliflags"
@@ -52,6 +54,8 @@ type Server struct {
 	PendingConfirms  *PendingConfirmStore                     // pending destructive operation confirmations; nil disables
 	StatsWriter      *stats.Writer                            // async SQLite writer for tool event persistence; nil disables
 	StatsStore       *stats.StatsStore                        // for query-time aggregation; nil disables tool-stats route
+	AuditSink        *audit.Writer                            // records mutating tracker actions for the audit trail; nil disables
+	AuditStore       *audit.Store                             // serves audit-query reads; nil disables audit-query route
 	AgentCleaner     AgentCleaner                             // async agent cleanup; nil disables agent-stop-async route
 	VaultResolver    *vault.Resolver                          // session-scoped vault resolver; reused across requests to avoid repeated op.exe calls
 
@@ -213,6 +217,14 @@ func (s *Server) executeCommand(conn net.Conn, req Request, projectDir string) {
 		exitCode = 1
 	}
 
+	// Emit the audit event after execution so the outcome (and the per-request
+	// HUMAN_AUDIT_* decision context on ctx) is known.
+	outcome := audit.OutcomeSuccess
+	if exitCode != 0 {
+		outcome = audit.OutcomeFailure
+	}
+	s.emitAudit(req.Args, outcome, func(k string) string { return env.Lookup(ctx, k) })
+
 	resp := Response{
 		Stdout:   stdoutBuf.String(),
 		Stderr:   stderrBuf.String(),
@@ -223,6 +235,26 @@ func (s *Server) executeCommand(conn net.Conn, req Request, projectDir string) {
 	if err := enc.Encode(resp); err != nil {
 		s.Logger.Warn().Err(err).Msg("failed to write response")
 	}
+}
+
+// emitAudit records a mutating command's outcome. It is a no-op when the
+// command is not mutating or no sink is configured. lookup resolves the
+// per-request HUMAN_AUDIT_* decision context.
+func (s *Server) emitAudit(args []string, outcome audit.Outcome, lookup func(string) string) {
+	if s.AuditSink == nil {
+		return
+	}
+	op, ok := audit.DetectMutating(args)
+	if !ok {
+		return
+	}
+	dc := audit.DecisionFromEnv(lookup)
+	e, err := audit.BuildEvent(time.Now().UTC(), op, outcome, dc, args)
+	if err != nil {
+		s.Logger.Warn().Err(err).Msg("audit event build failed")
+		return
+	}
+	s.AuditSink.Send(e)
 }
 
 // handleLogMode handles get/set of the traffic log mode in-memory.
@@ -251,6 +283,21 @@ func (s *Server) handleLogMode(conn net.Conn, args []string) {
 	_ = enc.Encode(resp)
 }
 
+// routeDataStores handles read routes backed by the daemon's SQLite stores
+// (tool-stats, audit-query). Split out of routeIntercept so each switch stays
+// small and the analytics/query reads live together. Returns true if handled.
+func (s *Server) routeDataStores(conn net.Conn, args []string) bool {
+	switch args[0] {
+	case "tool-stats":
+		s.handleToolStats(conn)
+		return true
+	case "audit-query":
+		s.handleAuditQuery(conn, args[1:])
+		return true
+	}
+	return false
+}
+
 // routeIntercept handles special commands that don't need subprocess execution.
 // projectDir is the resolved project directory for this request.
 // clientPID identifies the requesting client for authorization checks.
@@ -258,6 +305,9 @@ func (s *Server) handleLogMode(conn net.Conn, args []string) {
 func (s *Server) routeIntercept(conn net.Conn, reader *bufio.Reader, args []string, projectDir string, clientPID int) bool {
 	if len(args) == 0 {
 		return false
+	}
+	if s.routeDataStores(conn, args) {
+		return true
 	}
 	switch args[0] {
 	case "log-mode":
@@ -283,9 +333,6 @@ func (s *Server) routeIntercept(conn net.Conn, reader *bufio.Reader, args []stri
 		return true
 	case "confirm-op":
 		s.handleConfirmOp(conn, args[1:], clientPID)
-		return true
-	case "tool-stats":
-		s.handleToolStats(conn)
 		return true
 	case "agent-stop-async":
 		s.handleAgentStopAsync(conn, args[1:])
@@ -429,6 +476,96 @@ func (s *Server) handleToolStats(conn net.Conn) {
 	resp := Response{Stdout: out}
 	enc := json.NewEncoder(conn)
 	_ = enc.Encode(resp)
+}
+
+// handleAuditQuery serves "human audit list/show" reads through the daemon,
+// which owns the audit DB. An unset store returns an empty array so a missing
+// feature looks like an empty result to the client, matching tool-stats.
+func (s *Server) handleAuditQuery(conn net.Conn, args []string) {
+	if s.AuditStore == nil {
+		resp := Response{Stdout: "[]\n"}
+		enc := json.NewEncoder(conn)
+		_ = enc.Encode(resp)
+		return
+	}
+
+	f := parseAuditFilter(args)
+	events, err := s.AuditStore.Query(context.Background(), f)
+	if err != nil {
+		s.writeError(conn, err.Error(), 1)
+		return
+	}
+	data, err := json.Marshal(events)
+	if err != nil {
+		s.writeError(conn, err.Error(), 1)
+		return
+	}
+	resp := Response{Stdout: string(data) + "\n"}
+	enc := json.NewEncoder(conn)
+	_ = enc.Encode(resp)
+}
+
+// parseAuditFilter builds an audit.Filter from pre-parsed flag args. The args
+// arrive as a plain slice (no cobra), so it is self-contained and recognises
+// --since/--until (RFC3339), --subject, --tracker, and --limit. Default window
+// is the last 7 days up to now.
+func parseAuditFilter(args []string) audit.Filter {
+	now := time.Now().UTC()
+	f := audit.Filter{
+		Since: now.Add(-7 * 24 * time.Hour),
+		Until: now,
+	}
+
+	for i := 0; i < len(args); i++ {
+		name, value, consumed := auditFlagValue(args, i)
+		if name == "" {
+			continue
+		}
+		applyAuditFlag(&f, name, value)
+		i += consumed
+	}
+	return f
+}
+
+// auditFlagValue resolves the flag at args[i] into its name and value,
+// supporting both "--flag=value" and "--flag value" forms. consumed is the
+// number of extra tokens to skip (1 for the space form). A non-flag or
+// unterminated flag yields an empty name.
+func auditFlagValue(args []string, i int) (name, value string, consumed int) {
+	a := args[i]
+	if !strings.HasPrefix(a, "--") {
+		return "", "", 0
+	}
+	if eq := strings.IndexByte(a, '='); eq >= 0 {
+		return a[:eq], a[eq+1:], 0
+	}
+	if i+1 < len(args) {
+		return a, args[i+1], 1
+	}
+	return "", "", 0
+}
+
+// applyAuditFlag sets the matching field on f, ignoring unknown flags and
+// unparseable time/int values (the defaults already on f then stand).
+func applyAuditFlag(f *audit.Filter, name, value string) {
+	switch name {
+	case "--since":
+		if t, err := time.Parse(time.RFC3339, value); err == nil {
+			f.Since = t.UTC()
+		}
+	case "--until":
+		if t, err := time.Parse(time.RFC3339, value); err == nil {
+			f.Until = t.UTC()
+		}
+	case "--subject":
+		f.Subject = value
+	case "--tracker":
+		f.TrackerKind = value
+	case "--limit":
+		if n, err := strconv.Atoi(value); err == nil {
+			f.Limit = n
+		}
+	}
 }
 
 // handleAgentStopAsync removes the agent from the list immediately and
@@ -665,6 +802,14 @@ func (s *Server) handleDestructiveConfirm(conn net.Conn, req Request, op destruc
 	}
 
 	if !approved {
+		// Denial/timeout: no command ctx exists, so resolve the decision
+		// context straight from the request env (falling back to the process).
+		s.emitAudit(req.Args, audit.OutcomeDenied, func(k string) string {
+			if v, ok := req.Env[k]; ok {
+				return v
+			}
+			return os.Getenv(k)
+		})
 		resp2 := Response{Stderr: "Operation aborted\n", ExitCode: 1}
 		_ = enc.Encode(resp2)
 		return
@@ -703,6 +848,14 @@ func (s *Server) handleDestructiveConfirm(conn net.Conn, req Request, op destruc
 	if err := cmd.Execute(); err != nil {
 		exitCode = 1
 	}
+
+	// Approved-and-executed: record the outcome like the normal path, using the
+	// command ctx so the per-request HUMAN_AUDIT_* decision context resolves.
+	outcome := audit.OutcomeSuccess
+	if exitCode != 0 {
+		outcome = audit.OutcomeFailure
+	}
+	s.emitAudit(req.Args, outcome, func(k string) string { return env.Lookup(ctx, k) })
 
 	resp2 := Response{
 		Stdout:   stdoutBuf.String(),
