@@ -12,12 +12,14 @@
 
 [https://gethuman.sh](https://gethuman.sh)
 
-**The AI Software Factory.** Tickets, docs, designs, and analytics in. Shipped code out. One secure pipeline from idea to review. Claude on the line, human on the floor. You in control.
+**human is your team's AI dev rig** — everything your AI development needs, best of breed, already wired. Trackers, docs, designs, analytics, a secure sandbox, and the lifecycle workflow, in one open-source install, configured the right way around the coding agent you already run. Nothing to research, assemble, or keep up with.
 
-- **Pipeline Dashboard** — Monitor running agents, token usage, tracker issues, and pipeline state in real time
-- **Secure Devcontainer** — OAuth, MCP, browser access, Chrome Bridge, firewall — all configured out of the box
-- **Context Management** — Connectors for every source with cross-tracker and Notion search
-- **Lifecycle Skills** — Ideate, plan, execute, review. One command (`/human-sprint`) runs the full pipeline
+- **Secure by default** — outbound firewall, secret-redacting filesystem, vault-resolved credentials, isolated devcontainer. The AI works on your code, never sees your tokens.
+- **Saving Tokens** — structural code navigation and signal-extracted tracker data: up to 95% fewer tokens than raw APIs or MCP servers.
+- **Context engineering** — connectors for every source (trackers, Notion, Figma, Amplitude) with one cross-source search and codebase indexing, so the AI builds from real requirements, not guesses.
+- **Best of breed, one install** — the best tool in every category, integrated and tested together. No MCP hunting, one credential system, we keep it current.
+- **You in control** — live dashboard of agents, tokens, and pipeline state, guardrails and policy rules, and a full audit trail.
+- **Automatic development** — lifecycle skills from ideate to review, plus optional autonomous bug-fixing. Turn autonomy up when you're ready.
 
 ### Architecture
 
@@ -105,6 +107,7 @@ Each module ships a short `README.md` describing what it does for you, in plain 
 
 **Infrastructure & security**
 
+- [Audit Trail](internal/audit/README.md) — structured, queryable record of every agent action against trackers
 - [Background Daemon](internal/daemon/README.md) — holds credentials, answers commands fast
 - [Dev Containers](internal/devcontainer/README.md) — reproducible sandbox for agents
 - [HTTPS Proxy](internal/proxy/README.md) — filter outbound agent traffic by domain
